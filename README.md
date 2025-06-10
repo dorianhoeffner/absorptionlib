@@ -25,9 +25,15 @@ from absorptionlib import NaOH, LiBr, LiCl, CaCl2
 # Example Usage
 p = 100000 # [Pa]
 x = 0.4    # [%]  = [kgNaOH / kgSolution]
-t_sat = NaOH.saturation_temperature(p, x)
+t_sat = NaOH.saturation_temperature(x, p)
 print(t_sat)
 ```
+**Output**
+```
+129.75
+```
+
+
 
 # Quick documentation
 Each of the submodules have their own "in-line" documentation, which can be called by the "documentation"-method. Each thermophysical property function has a separate docstring, which can be called by the "explain"-method.
@@ -62,3 +68,15 @@ LiCl.explain("pTDiagram")   # returns docstring for LiCl.pTDiagram
 | hxDiagram                 | Plots the enthalpy-concentration diagram for the respective solution.                                 |
 | pTDiagram                 | Plots the pressure-temperature diagram the respective solutions.                                 |
 | crystallization_curve     | Plots the crystallization curve for the solution |
+
+
+# Diagrams
+
+As stated before, you can construct diagrams (pT-Diagram, hx-Diagram, crystallization-curve) with the package. For example:
+
+```python
+NaOH.pTDiagram()
+```
+
+![pT-Diagram](https://github.com/dorianhoeffner/absorptionlib/graphics/pTDiagram_example.jpg)
+
