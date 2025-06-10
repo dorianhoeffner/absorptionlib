@@ -58,7 +58,7 @@ LiCl.explain("pTDiagram")   # returns docstring for LiCl.pTDiagram
 | specific_heat_capacity    | Calculate the specific heat capacity of the solution.                                      |
 | dynamic_viscosity         | Calculate the dynamic viscosity of the solution.                                            |
 | diffusion_coefficient     | Computes the diffusion coefficient of the solution.                                   |
-| solubility_temperature    | Calculate the crystallization temperature of LiCl solution in water.                           |
-| hxDiagram                 | Plots the enthalpy-concentration diagram for LiCl-H2O solutions.                                 |
-| pTDiagram                 | Plots the pressure-temperature diagram for LiCl-H2O solutions.                                 |
+| solubility_temperature    | Calculate the crystallization temperature based on concentration.                           |
+| hxDiagram                 | Plots the enthalpy-concentration diagram for the respective solution.                                 |
+| pTDiagram                 | Plots the pressure-temperature diagram the respective solutions.                                 |
 | crystallization_curve     | Plots the crystallization curve for the solution |
