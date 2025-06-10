@@ -49,15 +49,16 @@ LiCl.explain("pTDiagram")   # returns docstring for LiCl.pTDiagram
 
 | Function Name              | Description                                                                                   |
 |---------------------------|------------------------------------------------------------------------------------------------|
-| saturation_temperature    | Calculate the boiling point temperature of an aqueous Lithium Bromide solution.                |
-| enthalpy                  | Calculate the enthalpy of an H2O-LiCl solution at a given temperature and concentration.       |
-| differential_enthalpy_AD  | Calculates the differential enthalpy of a CaCl2 solution.                                      |
-| saturation_pressure       | Calculate the equilibrium pressure of an H2O-LiCl solution.                                    |
-| saturation_concentration  | Calculates the saturation concentration of LiCl in water based on the temperature and pressure.|
-| density                   | Calculate the density of a water-LiCl solution.                                                |
-| specific_heat_capacity    | Calculate the specific heat capacity of a CaCl2 solution.                                      |
-| dynamic_viscosity         | Calculate the dynamic viscosity of a LiCl solution.                                            |
-| diffusion_coefficient     | Computes the self diffusion coefficient of a CaCl2 solution.                                   |
-| hxDiagram                 | Plots the pressure-temperature diagram for LiCl-H2O solutions.                                 |
-| pTDiagram                 | Plots the pressure-temperature diagram for LiCl-H2O solutions.                                 |
+| saturation_temperature    | Calculate the boiling point temperature of solution.                |
+| enthalpy                  | Calculate the enthalpy of the solution at a given temperature and concentration.       |
+| differential_enthalpy_AD  | Calculates the differential enthalpy of the solution.                                      |
+| saturation_pressure       | Calculate the equilibrium pressure of the solution.                                    |
+| saturation_concentration  | Calculates the saturation concentration of the solution based on the temperature and pressure.|
+| density                   | Calculate the density of a the solution.                                                |
+| specific_heat_capacity    | Calculate the specific heat capacity of the solution.                                      |
+| dynamic_viscosity         | Calculate the dynamic viscosity of the solution.                                            |
+| diffusion_coefficient     | Computes the diffusion coefficient of the solution.                                   |
 | solubility_temperature    | Calculate the crystallization temperature of LiCl solution in water.                           |
+| hxDiagram                 | Plots the enthalpy-concentration diagram for LiCl-H2O solutions.                                 |
+| pTDiagram                 | Plots the pressure-temperature diagram for LiCl-H2O solutions.                                 |
+| crystallization_curve     | Plots the crystallization curve for the solution |
