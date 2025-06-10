@@ -78,5 +78,5 @@ As stated before, you can construct diagrams (pT-Diagram, hx-Diagram, crystalliz
 NaOH.pTDiagram()
 ```
 
-![pT-Diagram](https://github.com/dorianhoeffner/absorptionlib/graphics/pTDiagram_example.jpg)
+![pT-Diagram](https://github.com/dorianhoeffner/absorptionlib/graphics/pTDiagram_example.png)
 
