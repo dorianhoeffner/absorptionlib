@@ -8,7 +8,8 @@ This package contains thermophysical property data for the following solutions u
 
 If you want to use this package, please cite:
 Höffner et al. 2025 - Potentials of absorption thermal energy storage systems in seasonal application
-DOI: 10.18462/iir.tptpr2025.1130
+
+DOI: https://doi.org/10.18462/iir.tptpr2025.1130
 
 ### Installation and Unsage
 
