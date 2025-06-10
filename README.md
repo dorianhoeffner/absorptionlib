@@ -80,7 +80,7 @@ NaOH.pTDiagram()
 
 ![pT-Diagram](https://github.com/dorianhoeffner/absorptionlib/blob/main/graphics/pTDiagram_example.png)
 
-Note: The plots can be styled with usual matplotlib syntax. If the plot should be editable use the ```NaOH.pTDiagram(editablePlot=True)```. To reproduce the same-looking plot, set up matplotlib using:
+Note: The plots can be styled with usual matplotlib syntax. If the plot should be editable, use the ```NaOH.pTDiagram(editablePlot=True)```. To reproduce the same-looking plot, set up matplotlib using:
 
 ```python
 # matplotlib font to geogia
