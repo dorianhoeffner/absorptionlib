@@ -7,6 +7,7 @@ This package contains thermophysical property data for the following solutions u
 - CaCl2-water
 
 If you want to use this package, please cite:
+
 Höffner et al. 2025 - Potentials of absorption thermal energy storage systems in seasonal application
 
 DOI: https://doi.org/10.18462/iir.tptpr2025.1130
