@@ -2,12 +2,13 @@ from setuptools import setup, find_packages
 
 setup(
     name="absorptionlib",
-    version="1.0.12",
+    version="1.0.13",
     packages=find_packages(),  # Automatically finds the `propertiesNaOH` package
     install_requires=[
         'numpy',
         'matplotlib',
-        'pyXSteam',  # For the pyXSteam package
+        'pyXSteam',
+        'coolprop'
     ],
     author="Dorian Höffner",
     author_email="dorian.hoeffner@tu-berlin.de",
