@@ -53,21 +53,29 @@ LiCl.explain("pTDiagram")   # returns docstring for LiCl.pTDiagram
 
 ### Available Property-Functions
 
-| Function Name              | Description                                                                                   |
-|---------------------------|------------------------------------------------------------------------------------------------|
-| saturation_temperature    | Calculate the boiling point temperature of solution.                |
-| enthalpy                  | Calculate the enthalpy of the solution at a given temperature and concentration.       |
-| differential_enthalpy_AD  | Calculates the differential enthalpy of the solution.                                      |
-| saturation_pressure       | Calculate the equilibrium pressure of the solution.                                    |
-| saturation_concentration  | Calculates the saturation concentration of the solution based on the temperature and pressure.|
-| density                   | Calculate the density of a the solution.                                                |
-| specific_heat_capacity    | Calculate the specific heat capacity of the solution.                                      |
-| dynamic_viscosity         | Calculate the dynamic viscosity of the solution.                                            |
-| diffusion_coefficient     | Computes the diffusion coefficient of the solution.                                   |
-| solubility_temperature    | Calculate the crystallization temperature based on concentration.                           |
-| hxDiagram                 | Plots the enthalpy-concentration diagram for the respective solution.                                 |
-| pTDiagram                 | Plots the pressure-temperature diagram the respective solutions.                                 |
-| crystallization_curve     | Plots the crystallization curve for the solution |
+| Function                         | Parameter 1           | Parameter 2           | Parameter 3    | Return Unit   |
+|----------------------------------|-----------------------|-----------------------|----------------|---------------|
+| saturation_temperature(P, x1)    | P (Pa)                | x (kgNaOH/kgSolution) | -              | °C            |
+| saturation_pressure(x, T)        | x (kgNaOH/kgSolution) | T (°C)                | -              | Pa            |
+| saturation_concentration(x, T)   | P (Pa)                | T (°C)                | -              | kg/kg         |
+| enthalpy(x, T)                   | x (kgNaOH/kgSolution) | T (°C)                | -              | kJ/kg         |
+| differential_enthalpy_AD(x, T)   | x (kgNaOH/kgSolution) | T (°C)                | -              | kJ/kg         |
+| specific_heat_capacity(x, T)     | x (kgNaOH/kgSolution) | T (°C)                | -              | kJ/kg·K       |
+| density(x, T)                    | x (kgNaOH/kgSolution) | T (°C)                | -              | kg/m³         |
+| dynamic_viscosity(x, T)          | x (kgNaOH/kgSolution) | T (°C)                | -              | Pa·s          |
+| diffusion_coefficient(x, T)      | x (kgNaOH/kgSolution) | T (°C)                | -              | m2/s          |
+| thermal_conductivity(x, T, p)    | x (kgNaOH/kgSolution) | T (°C)                | p (Pa)         | W/m·K         |
+| solubility_temperature(x)        | x (kgNaOH/kgSolution) | -                     | -              | W/m·K         |
+
+
+### Available Utilities
+
+| Function                 | Description                  | Boolean Options + Defaults                              |
+|--------------------------|------------------------------|---------------------------------------------------------|
+| hxDiagram()              | shows hx-Diagram             |                                                         |
+| pTDiagram()              | shows pT-Diagram             | log=True, invT=True                                     |
+|                          |                              | editablePlot=False, show_percentages=True               |
+| crystallization_curve()  | shows crystallization curve  | return_data=False (if True, only data returned, no plot)|
 
 
 # Diagrams
@@ -90,4 +98,5 @@ plt.rcParams['mathtext.fontset'] = 'custom'
 plt.rcParams['mathtext.rm'] = 'Georgia'
 plt.rcParams['mathtext.it'] = 'Georgia:italic'
 ```
+
 
