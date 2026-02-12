@@ -794,7 +794,7 @@ def thermal_conductivity(x, T, p):
     
     lambda_NaOH = lambda_water + expression3 # [kW/mK]
 
-    return float(lambda_NaOH * 1e3) # [W/mK]
+    return float(lambda_NaOH) # [W/mK]
 
 def dhdx(x,T):
     """
@@ -1255,4 +1255,5 @@ def crystallization_curve(return_data=False):
         plt.grid(which='major', linestyle='-', linewidth='0.2', color='black')
         plt.grid(which='minor', linestyle=':', linewidth='0.1', color='black')
         # add legend (top left)
+
         plt.legend(loc='upper left')
