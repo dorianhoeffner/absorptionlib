@@ -26,5 +26,11 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dorianhoeffner/absorptionlib"
+"Absorption Atlas" = "https://dorianhoeffner.github.io/absorptionlib/"
+Source = "https://github.com/dorianhoeffner/absorptionlib"
+Paper = "https://doi.org/10.18462/iir.tptpr2025.1130"
+
 [tool.setuptools.packages.find]
 include = ["absorptionlib*"]

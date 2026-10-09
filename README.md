@@ -12,6 +12,16 @@ Höffner et al. 2025 — Potentials of absorption thermal energy storage systems
 
 DOI: https://doi.org/10.18462/iir.tptpr2025.1130
 
+### Absorption Atlas — try it in the browser
+
+Explore the property functions interactively, without installing anything:
+p–T, h–x and solubility diagrams, a property calculator with matching
+absorptionlib code, and a storage-cycle analysis comparing all four salts
+(method: Höffner, Ziegler & Elbel 2026, *Energy Conversion and Management* 366,
+121845, https://doi.org/10.1016/j.enconman.2026.121845).
+
+**https://dorianhoeffner.github.io/absorptionlib/**
+
 ### Installation and Usage
 
 ```
@@ -115,7 +125,7 @@ You can construct diagrams (pT-diagram, hx-diagram, crystallization curve) with 
 NaOH.pTDiagram()
 ```
 
-![pT-Diagram](https://github.com/dorianhoeffner/absorptionlib/blob/main/graphics/pTDiagram_example.png)
+![pT-Diagram](https://raw.githubusercontent.com/dorianhoeffner/absorptionlib/main/graphics/pTDiagram_example.png)
 
 Note: The plots can be styled with the usual matplotlib syntax. If the plot should be editable, use `NaOH.pTDiagram(editablePlot=True)`. To reproduce the same-looking plot, set up matplotlib using:
 
