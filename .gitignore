@@ -1,0 +1,18 @@
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+
+# OS
+.DS_Store

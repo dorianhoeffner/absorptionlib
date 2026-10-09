@@ -1,157 +1,203 @@
+"""
+Thermophysical property functions for aqueous CaCl2-H2O solutions.
+
+Units (uniform across absorptionlib):
+    x : salt mass fraction [kg CaCl2 / kg solution]
+    T : temperature [°C]
+    p : pressure [Pa]
+
+All property functions accept ``prevent_errors=False``:
+    False -> out-of-range inputs emit OutOfRangeWarning /
+             CrystallizationWarning; invalid inputs raise ValueError.
+    True  -> all warnings are suppressed and ValueError is replaced by a
+             ``float('nan')`` return value (safe for optimizers).
+
+Main source:
+    Conde (2009): "Aqueous solutions of lithium and calcium chlorides:
+        property formulations for use in air conditioning equipment design".
+"""
+
 import numpy as np
-from scipy.interpolate import griddata
-from scipy.optimize import fsolve
-from scipy.integrate import quad
 import matplotlib.pyplot as plt
+from scipy.optimize import brentq
+from scipy.integrate import quad
 
 from pyXSteam.XSteam import XSteam
+
+try:
+    from .._common import (
+        warn_out_of_range,
+        warn_crystallization,
+        suppress_warnings,
+        print_documentation,
+        explain_function,
+        _msg,
+    )
+except ImportError:
+    # Module was imported standalone (e.g. "import functions" from inside
+    # this folder) instead of through the absorptionlib package.
+    import os as _os
+    import sys as _sys
+    _sys.path.insert(0, _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), ".."))
+    from _common import (
+        warn_out_of_range,
+        warn_crystallization,
+        suppress_warnings,
+        print_documentation,
+        explain_function,
+        _msg,
+    )
+
 steamTable = XSteam(XSteam.UNIT_SYSTEM_MKS)  # m/kg/sec/°C/bar/W
 
-import sys
-import os
+_MODULE = "CaCl2"
+
+_DESCRIPTIONS = {
+    "saturation_temperature":    "Boiling point temperature of the solution at given x and p [°C].",
+    "saturation_pressure":       "Equilibrium (vapor) pressure of the solution at given x and T [Pa].",
+    "saturation_concentration":  "Saturation concentration at given p and T [kg/kg].",
+    "enthalpy":                  "Specific enthalpy of the solution at given x and T [kJ/kg].",
+    "differential_enthalpy_AD":  "Differential enthalpy of dilution at given x and T [kJ/kg H2O].",
+    "density":                   "Density of the solution at given x and T [kg/m³].",
+    "specific_heat_capacity":    "Specific heat capacity of the solution at given x and T [kJ/(kg K)].",
+    "dynamic_viscosity":         "Dynamic viscosity of the solution at given x and T [Pa s].",
+    "diffusion_coefficient":     "Self diffusion coefficient of the solution at given x and T [m²/s].",
+    "solubility_temperature":    "Crystallization temperature at given x [°C].",
+    "hxDiagram":                 "Plots the enthalpy-concentration diagram.",
+    "pTDiagram":                 "Plots the pressure-temperature diagram.",
+    "crystallization_curve":     "Plots (or returns) the crystallization curve.",
+}
 
 
 def documentation():
-    print("""
-This module contains functions for calculating properties of CaCl2-H2O solutions:
+    """Print an overview of all public functions of this module."""
+    print_documentation(_MODULE, "CaCl2", _DESCRIPTIONS)
 
-| Function Name              | Description                                                                                   |
-|---------------------------|------------------------------------------------------------------------------------------------|
-| saturation_temperature    | Calculate the boiling point temperature of an aqueous Lithium Bromide solution.                |
-| enthalpy                  | Calculate the enthalpy of an H2O-CaCl2 solution at a given temperature and concentration.       |
-| differential_enthalpy_AD  | Calculates the differential enthalpy of a CaCl2 solution.                                      |
-| saturation_pressure       | Calculate the equilibrium pressure of an H2O-CaCl2 solution.                                    |
-| saturation_concentration  | Calculates the saturation concentration of CaCl2 in water based on the temperature and pressure.|
-| density                   | Calculate the density of a water-CaCl2 solution.                                                |
-| specific_heat_capacity    | Calculate the specific heat capacity of a CaCl2 solution.                                      |
-| dynamic_viscosity         | Calculate the dynamic viscosity of a CaCl2 solution.                                            |
-| diffusion_coefficient     | Computes the self diffusion coefficient of a CaCl2 solution.                                   |
-| hxDiagram                 | Plots the pressure-temperature diagram for CaCl2-H2O solutions.                                 |
-| pTDiagram                 | Plots the pressure-temperature diagram for CaCl2-H2O solutions.                                 |
-| solubility_temperature    | Calculate the crystallization temperature of CaCl2 solution in water.                           |
-
-For more information use the following function: CaCl2.explain("function_name")
-
-For example: CaCl2.explain("enthalpy")
-    """)
 
 def explain(function_name):
     """
-    Prints the documentation for a specific function in the module.
-    
+    Print the documentation for a specific function of this module.
+
     Parameters:
-        function_name (str): The name of the function to explain.
-        
+        function_name (str): Name of the function to explain.
+
     Returns:
         None
     """
-    
-    # Get the function object from the module
-    func = globals().get(function_name)
-    
-    if func is None:
-        print(f"Function '{function_name}' not found.")
-        return
-    
-    # Print the docstring of the function
-    print(func.__doc__)
+    explain_function(globals(), _MODULE, function_name, _DESCRIPTIONS)
 
 
-# CaCl2 property functions
-# DONE
-def saturation_temperature(x, p):
+# ---------------------------------------------------------------------------
+# Property functions
+# ---------------------------------------------------------------------------
+
+def saturation_temperature(x, p, prevent_errors=False):
     """
-    Calculates the saturation temperature for a given concentration and pressure of CaCl2 solution.
+    Boiling point temperature of an aqueous CaCl2-H2O solution.
+
+    Solves saturation_pressure(x, T) = p for T using a bracketing root
+    finder (brentq) on the interval -40 °C to 220 °C.
+
     Parameters:
-        x (float): Mass fraction [kg CaCl2 / kg solution] or concentration of CaCl2 in the solution.
-        p (float): Pressure [Pa] at which to calculate the saturation temperature (same units as used in saturation_pressure).
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 0.6.
+        p (float): Pressure [Pa].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
     Returns:
-        float: Saturation temperature (in the same units as used in saturation_pressure and solubility_temperature).
-    Warnings:
-        Prints a warning if the calculated saturation temperature is below the solubility temperature for the given concentration.
-    Notes:
-        - Uses a numerical solver to find the temperature at which the solution's saturation pressure equals the specified pressure.
-        - Assumes the existence of `saturation_pressure(x, T)` and `solubility_temperature(x)` functions.
+        float: Boiling point temperature [°C] (NaN if no solution exists
+        in the search interval and prevent_errors=True).
+
+    Source: based on saturation_pressure (Conde 2009).
     """
-    T_guess = 20
-    T = fsolve(lambda T: saturation_pressure(x, T) - p, T_guess)[0]
+    try:
+        with suppress_warnings():
+            T = brentq(lambda T: saturation_pressure(x, T, prevent_errors=True) - p,
+                       -40.0, 220.0)
+    except ValueError:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "saturation_temperature",
+                              f"no saturation temperature found in "
+                              f"-40..220 °C for x = {x}, p = {p} Pa."))
 
-    # check if the solution is in liquid state
-    t_sol = solubility_temperature(x)[0]
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
     if T < t_sol:
-        print(f"Warning from CaCl2.saturation_temperature: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
-    
-    return T
+        warn_crystallization(_MODULE, "saturation_temperature", T, t_sol, x,
+                             prevent_errors)
 
-# DONE
+    return float(T)
+
+
 def enthalpy(x, T, prevent_errors=False):
     """
-    Calculate the specific enthalpy of a CaCl2 solution at a given concentration and temperature.
+    Specific enthalpy of an aqueous CaCl2-H2O solution.
+
+    The enthalpy is calculated as the sum of an ideal part (specific heat
+    capacities of water and of the 25 % solution) and an excess part
+    obtained by numerical integration of the differential enthalpy of
+    dilution (differential_enthalpy_AD).
+
     Parameters:
-        x (float): Mass fraction of CaCl2 in the solution, defined as x = m_LiCl / (m_H2O + m_LiCl).
-        T (float): Temperature in degrees Celsius [°C].
-        prevent_errors (bool, optional): If True, suppresses warnings and returns NaN when the temperature is below the solubility temperature. Default is False.
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 0.6.
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
     Returns:
-        float: Specific enthalpy of the solution in [kJ/kg]. Returns np.nan if the temperature is below the solubility temperature and prevent_errors is False.
-    Notes:
-        - The enthalpy is calculated as the sum of the ideal enthalpy and the excess enthalpy.
-        - The ideal enthalpy is based on the specific heat capacities of water and CaCl2 at 25% mass fraction.
-        - The excess enthalpy is computed via numerical integration of the differential enthalpy of solution.
-        - Issues a warning and returns np.nan if the solution is not in the liquid state (i.e., T < solubility temperature) unless prevent_errors is True.
-    References:
-        - Differential enthalpy and solubility temperature functions must be defined elsewhere in the codebase.
-        - Uses steamTable.CpL_t and specific_heat_capacity for heat capacity calculations.
-    
-    Date:   2025-03-20
+        float: Specific enthalpy [kJ/kg].
+
+    Source: excess enthalpy based on Conde (2009).
     Author: Dorian Höffner
-
-    Parameter:
-     T in [°C]
-     x = m_LiCl/(m_H2O + m_LiCl)
-     h in [kJ/kg]
     """
-    
+    if not 0 <= x <= 0.6:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "enthalpy",
+                              f"mass fraction x = {x} outside the valid "
+                              f"range 0..0.6."))
+
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "enthalpy", T, t_sol, x, prevent_errors)
+
     def excess_enthalpy(x, T):
-        def dh_sol(x, T):
-            return differential_enthalpy_AD(x, T)
-        def integrand(x):
-            return dh_sol(x,T) / x**2
-        x_start = 0.00001
-        integral, error = quad(integrand, x_start, x)
-        CONSTANT, _ = quad(integrand, x_start, 0.25)
-        excess_enthalpy = x * integral - CONSTANT * x
-        return excess_enthalpy    
+        def integrand(x_):
+            return differential_enthalpy_AD(x_, T, prevent_errors=True) / x_**2
+        x_start = 1e-5
+        integral, _ = quad(integrand, x_start, x)
+        constant, _ = quad(integrand, x_start, 0.25)
+        return x * integral - constant * x
 
-    def ideal_enthalpy(x,T):
-        cp_water    = steamTable.CpL_t(T+0.000001)
-        cp_LiCl_25  = specific_heat_capacity(x=0.25, T=T)
-        return (1-x) * cp_water * (T)  + x * cp_LiCl_25 * (T)
-    
-    # check if the solution is in liquid state
-    if not prevent_errors:
-        t_sol = solubility_temperature(x)
-        if T < t_sol:
-            print(f"Warning from CaCl2.enthalpy: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
-            return np.nan
+    def ideal_enthalpy(x, T):
+        cp_water = steamTable.CpL_t(T + 1e-6)
+        cp_CaCl2_25 = specific_heat_capacity(x=0.25, T=T, prevent_errors=True)
+        return (1 - x) * cp_water * T + x * cp_CaCl2_25 * T
 
-    return ideal_enthalpy(x, T) + excess_enthalpy(x, T)
+    return float(ideal_enthalpy(x, T) + excess_enthalpy(x, T))
 
-def differential_enthalpy_AD(x, T):
+
+def differential_enthalpy_AD(x, T, prevent_errors=False):
     """
-    Calculates the differential enthalpy [kJ/kgH2O] of a CaCl2 solution based on concentration and temperature.
-    How much additional energy (in comparison to pure vaporization enthalpy) is needed to vaporize a certain amount of water in a CaCl2 solution.
-    
+    Differential enthalpy of dilution of an aqueous CaCl2-H2O solution.
+
+    How much additional energy (compared to the pure vaporization enthalpy)
+    is needed to vaporize a certain amount of water from the solution.
+
     Parameters:
-        x (float): Concentration of CaCl2 in the solution [kg/kg].
-        T (float): Temperature of the solution [°C].
+        x (float): Salt mass fraction [kg CaCl2 / kg solution].
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
 
     Returns:
-        float: Differential enthalpy [kJ/kgH2O].
+        float: Differential enthalpy [kJ/kg H2O].
 
-    Author: Dorian Höffner 11/2024
-    Source: CONDE2009 "Aqueous solutions of lithium and calcium chlorides: property formulations for use in air conditioning equipment design" (2009)
+    Source: Conde (2009).
+    Author: Dorian Höffner
     """
-
     H1 = 0.855
     H2 = -1.965
     H3 = -2.265
@@ -159,667 +205,564 @@ def differential_enthalpy_AD(x, T):
     H5 = -955.690
     H6 = 3011.974
 
-    # Reduced Temperature (with critical T of water)
-    Theta = (T + 273.15) / 647.1 # FLAG
+    if not 0 <= x < H4:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "differential_enthalpy_AD",
+                              f"mass fraction x = {x} outside the valid "
+                              f"range 0..{H4}."))
 
-    # zeta
-    zeta = x / (H4-x)
-
-    # Reference differental enthalpy
-    dh_dil0 =  H5 + H6 * Theta
-
-    # differental enthalpy
-    dh_dil = dh_dil0 * (1 + (zeta/H1)**H2)**H3
-
-    # check if the solution is in liquid state
-    t_sol = solubility_temperature(x)[0]
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
     if T < t_sol:
-        print(f"Warning from CaCl2.differential_enthalpy_AD: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
+        warn_crystallization(_MODULE, "differential_enthalpy_AD", T, t_sol,
+                             x, prevent_errors)
 
-    return dh_dil
+    Theta = (T + 273.15) / 647.1  # reduced temperature (critical T of water)
+    zeta = x / (H4 - x)
+    dh_dil0 = H5 + H6 * Theta
+    dh_dil = dh_dil0 * (1 + (zeta / H1) ** H2) ** H3
 
-# DONE
-def saturation_pressure(x, T):
+    return float(dh_dil)
+
+
+def saturation_pressure(x, T, prevent_errors=False):
     """
-    Calculates the pressure of aqueous NaOH-H2O solutions at high concentrations.
-    
-    Last Change: Dorian Höffner 10/2024
-    Author: O. Buchin, 03/2011
-    Source: Correlation according to CONDE2009 "Aqueous solutions of lithium and calcium chlorides:
-    property formulations for use in air conditioning equipment design" (2009)
-    
+    Equilibrium (vapor) pressure of an aqueous CaCl2-H2O solution.
+
     Parameters:
-    T (array-like): Temperature in [°C].
-    x (array-like): Mass fraction, defined as m_NaOH / (m_H2O + m_NaOH).
-    
-    Returns:
-    pd (float or array-like): Pressure in [Pa]
-    """
-    zeta = x  # Mass fraction of salt in solution = Msalt / Msolution
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 0.6.
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
 
-    # Coefficients
-    pi0 = 0.31
-    pi1 = 3.698
-    pi2 = 0.6
-    pi3 = 0.231
-    pi4 = 4.584
-    pi5 = 0.49
-    pi6 = 0.478
-    pi7 = -5.2
-    pi8 = -0.4
-    pi9 = 0.018
+    Returns:
+        float: Vapor pressure over the solution [Pa].
+
+    Source: Conde (2009).
+    Authors: O. Buchin (2011); standardized: Dorian Höffner (2024/2026).
+    """
+    if not 0 <= x <= 0.6:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "saturation_pressure",
+                              f"mass fraction x = {x} outside the valid "
+                              f"range 0..0.6."))
+
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "saturation_pressure", T, t_sol, x,
+                             prevent_errors)
+
+    zeta = x  # mass fraction of salt in solution
+
+    # Coefficients (Conde 2009, CaCl2)
+    pi0, pi1, pi2 = 0.31, 3.698, 0.6
+    pi3, pi4, pi5 = 0.231, 4.584, 0.49
+    pi6, pi7, pi8, pi9 = 0.478, -5.2, -0.4, 0.018
 
     A = 2 - (1 + (zeta / pi0) ** pi1) ** pi2
     B = (1 + (zeta / pi3) ** pi4) ** pi5 - 1
-    pi25 = (
-        1
-        - (1 + (zeta / pi6) ** pi7) ** pi8
-        - pi9 * np.exp(-((zeta - 0.1) ** 2) / 0.005)
-    )
+    pi25 = (1 - (1 + (zeta / pi6) ** pi7) ** pi8
+            - pi9 * np.exp(-((zeta - 0.1) ** 2) / 0.005))
 
-    # Theta - reduced temperature
+    # water properties
     TcH2O = 647.26  # K
     pcH2O = 22.064  # MPa
-    Theta = (T + 273.15) / TcH2O  # Corrected variable name from 't' to 'T'
 
+    Theta = (T + 273.15) / TcH2O
     fsol = A + B * Theta
-    pi = pi25 * fsol
+    pi_rel = pi25 * fsol
 
-    # Vapor pressure of water
+    # vapor pressure of pure water
     tau = 1 - Theta
+    A0, A1, A2 = -7.858230, 1.839910, -11.781100
+    A3, A4, A5 = 22.670500, -15.939300, 1.775160
 
-    A0 = -7.858230
-    A1 = 1.839910
-    A2 = -11.781100
-    A3 = 22.670500
-    A4 = -15.939300
-    A5 = 1.775160
+    lnpi = (A0 * tau + A1 * tau**1.5 + A2 * tau**3 + A3 * tau**3.5
+            + A4 * tau**4 + A5 * tau**7.5) / (1 - tau)
+    pdH2O = np.exp(lnpi) * pcH2O * 1e6  # MPa -> Pa
 
-    lnpi = (
-        A0 * tau
-        + A1 * tau ** 1.5
-        + A2 * tau ** 3
-        + A3 * tau ** 3.5
-        + A4 * tau ** 4
-        + A5 * tau ** 7.5
-    ) / (1 - tau)
-    pdH2O = np.exp(lnpi) * pcH2O * 1e6  # Convert from MPa to Pa
+    return float(pi_rel * pdH2O)
 
-    pd = pi * pdH2O
 
-    # check if the solution is in liquid state
-    t_sol = solubility_temperature(x)[0]
-    if T < t_sol:
-        print(f"Warning from CaCl2.saturation_pressure: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
-
-    return pd
-
-# DONE
-def saturation_concentration(p, T):
+def saturation_concentration(p, T, prevent_errors=False):
     """
-    Calculates the saturation concentration of NaOH in water based on the temperature and pressure.
+    Saturation concentration of CaCl2 in water at given pressure and temperature.
+
+    Solves saturation_pressure(x, T) = p for x using a bracketing root
+    finder (brentq) on the interval 0.0 to 0.6 kg/kg.
+
+    Parameters:
+        p (float): Pressure [Pa].
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
+    Returns:
+        float: Saturation concentration [kg CaCl2 / kg solution] (NaN if no
+        solution exists in the search interval and prevent_errors=True).
 
     Author: Dorian Höffner
-    Date: 2024-09-17
+    """
+    try:
+        with suppress_warnings():
+            x = brentq(lambda x: saturation_pressure(x, T, prevent_errors=True) - p,
+                       1e-6, 0.6)
+    except ValueError:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "saturation_concentration",
+                              f"no saturation concentration found in "
+                              f"0..0.6 kg/kg for p = {p} Pa, T = {T} °C."))
+
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "saturation_concentration", T, t_sol,
+                             x, prevent_errors)
+
+    return float(x)
+
+
+def density(x, T, prevent_errors=False):
+    """
+    Density of an aqueous CaCl2-H2O solution.
 
     Parameters:
-        p (float): Pressure in Pa.
-        T (float): Temperature in °C.
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 0.6.
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
 
     Returns:
-        float: Saturation concentration in kg NaOH / kg solution.
+        float: Density [kg/m³].
+
+    Source: Conde (2009).
+    Author: Dorian Höffner
     """
+    if not 0 <= x <= 0.6:
+        if prevent_errors:
+            return float("nan")
+        raise ValueError(_msg(_MODULE, "density",
+                              f"mass fraction x = {x} outside the valid "
+                              f"range 0..0.6."))
 
-    # Calculate the saturation concentration
-    x = 0.001
-    while saturation_pressure(x, T) - p > 1:   # 1 Pa tolerance
-        x += 0.001
-
-    # check if the solution is in liquid state
-    t_sol = solubility_temperature(x)[0]
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
     if T < t_sol:
-        print(f"Warning: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
+        warn_crystallization(_MODULE, "density", T, t_sol, x, prevent_errors)
 
-    return x
-
-# DONE
-def density(x, T):
-    """
-    Calculates the density of CaCl2 solution based on concentration and temperature.
-
-    Parameters:
-    x (float): Mole fraction of NaOH in the solution. [m_CaCl2 / (m_h2o+m_CaCl2)]
-    T (float): Temperature in °C.
-
-    Returns:
-    float: Density in kg/m^3.
-    ---
-    Author: Dorian Höffner 11/2024
-    Source: CONDE2009 "Aqueous solutions of lithium and calcium chlorides: property formulations for use in air conditioning equipment design" (2009)
-    """
-    if x > 0.6:
-        raise ValueError("Concentration of CaCl2 cannot be greater than 0.6 kg/kg. Correlation is not valid for this concentration.")
-    
-    # check if the solution is in liquid state
-    t_sol = solubility_temperature(x)[0]
-    if T < t_sol:
-        print(f"Warning: The temperature {T} is below the solubility temperature {t_sol} at x={x}.")
-
-    # Water Correlation
     def rho_h2o(T):
-        B = [1.9937718430, 1.0985211604, -0.5094492996, -1.7619124270, -44.9005480267, -723692.2618632]
-        rho_h2o_c = 322.0  # kg/m^3 (critical density of water)
-        Tc = 647.1  # K
-        Theta = (T+273.15) / Tc
-        t = 1-Theta
-        rho_h2o = rho_h2o_c * (1 + B[0] * t**(1/3) + B[1] * t**(2/3) + B[2] * t**(5/3) + B[3] * t**(16/3) + B[4] * t**(43/3) + B[5] * t**(110/3))
-        return rho_h2o
-    
-    # CaCl2-H2O Correlation
+        B = [1.9937718430, 1.0985211604, -0.5094492996, -1.7619124270,
+             -44.9005480267, -723692.2618632]
+        rho_h2o_c = 322.0  # critical density of water [kg/m³]
+        Tc = 647.1         # K
+        t = 1 - (T + 273.15) / Tc
+        return rho_h2o_c * (1 + B[0] * t**(1 / 3) + B[1] * t**(2 / 3)
+                            + B[2] * t**(5 / 3) + B[3] * t**(16 / 3)
+                            + B[4] * t**(43 / 3) + B[5] * t**(110 / 3))
+
     c = [1.0, 0.836014, -0.436300, 0.105642]
-    rho = rho_h2o(T) * sum([c[i] * (x/(1-x))**i for i in range(4)])
+    rho = rho_h2o(T) * sum(c[i] * (x / (1 - x)) ** i for i in range(4))
 
-    return rho # density in kg/m^3
+    return float(rho)
 
-# # DONE
-# def density_old(x, T):
-#     """
-#     Calculates the density of CaCl2 solution based on concentration and temperature.
 
-#     Parameters:
-#     x (float): Mole fraction of CaCl2 in the solution. [m_CaCl2 / (m_h2o+m_CaCl2)]
-#     T (float): Temperature in °C.
-
-#     Returns:
-#     float: Density in kg/m^3.
-#     ---
-#     Author: Dorian Höffner 11/2024
-#     Data extracted from: Hao et al. 2016 "Modeling of CO2 solubility in single and mixed electrolyte solutions using statistical associating fluid theory"
-#     """
-#     # Convert molality to concentration in kg/kg for CaCl solution
-#     molalities = np.array([
-#         [0.2380952380952381, 0.7471264367816093, 1.2807881773399015, 1.781609195402299, 2.3070607553366176,
-#         2.889983579638752, 3.472906403940887, 4.010673234811166, 4.486863711001642, 4.909688013136289],
-#         [0.24630541871921183, 0.7594417077175698, 1.293103448275862, 1.7980295566502464, 2.323481116584565,
-#         2.9105090311986865, 3.477011494252874, 4.018883415435139, 4.503284072249589, 4.909688013136289],
-#         [0.2545155993431856, 0.7881773399014779, 1.3382594417077176, 1.8267651888341545, 2.3399014778325125,
-#         2.935139573070608, 3.493431855500821, 4.0353037766830875, 4.5073891625615765, 4.917898193760263],
-#         [0.2504105090311987, 0.8087027914614122, 1.3669950738916257, 1.8596059113300494, 2.376847290640394,
-#         2.9761904761904763, 3.501642036124795, 4.059934318555008, 4.527914614121511, 4.946633825944171],
-#         [0.513136288998358, 0.8292282430213465, 1.416256157635468, 1.8308702791461413, 2.389162561576355,
-#         3.0049261083743843, 3.5180623973727423, 4.072249589490969, 4.499178981937603, 4.9384236453201975]
-#     ])
-
-#     M_CaCl2 = 110.98  # g/mol for CaCl2
-#     x_values = molalities * M_CaCl2 / 1000  # Convert molality to kg/kg
-
-#     temperatures = [
-#         [298.15] * 10,
-#         [323.15] * 10,
-#         [373.15] * 10,
-#         [423.15] * 10,
-#         [473.15] * 10
-#     ]
-
-#     densities = [
-#         [1.026256077795786, 1.0656401944894651, 1.1055105348460292, 1.1434359805510534, 1.1794165316045382,
-#         1.220259319286872, 1.2572123176661265, 1.2922204213938413, 1.3218800648298217, 1.347163695299838],
-#         [1.013128038897893, 1.0544570502431119, 1.0952998379254457, 1.1322528363047002, 1.1696920583468395,
-#         1.2100486223662885, 1.247001620745543, 1.280551053484603, 1.3097244732576985, 1.3340356564019449],
-#         [0.9810372771474878, 1.0257698541329012, 1.0675850891410048, 1.1055105348460292, 1.1414910858995138,
-#         1.1828200972447327, 1.220745542949757, 1.2552674230145868, 1.2829821717990275, 1.3082658022690439],
-#         [0.9397082658022691, 0.986871961102107, 1.033063209076175, 1.0709886547811993, 1.1094003241491086,
-#         1.152674230145867, 1.1881685575364669, 1.2246353322528363, 1.253808752025932, 1.2781199351701784],
-#         [0.9149108589951378, 0.9440842787682334, 0.993679092382496, 1.0286871961102106, 1.072933549432739,
-#         1.1176661264181524, 1.1541329011345218, 1.1915721231766614, 1.2188006482982172, 1.2455429497568882]
-#     ]
-
-#     # Flatten data for interpolation
-#     flat_concentrations = np.concatenate(x_values)
-#     flat_temperatures = np.concatenate(temperatures)
-#     flat_densities = np.concatenate(densities)
-
-#     # Create grid data
-#     points = np.array(list(zip(flat_concentrations, flat_temperatures)))
-#     values = flat_densities
-
-#     # Interpolate density at the given (x, T) point
-#     return griddata(points, values, (x, T + 273.15), method='linear')
-    
-
-# NOT AVAILABLE YET
-# DONE
-def specific_heat_capacity(x, T):
+def specific_heat_capacity(x, T, prevent_errors=False):
     """
-    Calculate the specific heat capacity of a CaCl2 solution (CaCl2-H2O) as a function of temperature and concentration.
-    
-    ---
-    x: float
-        Concentration of CaCl2 in the solution [kg/kg]
-    T: float
-        Temperature of the solution [°C]
-    ---
-    returns: float
-        Specific heat capacity of the solution [kJ/kgK]
-    ---
+    Specific heat capacity of an aqueous CaCl2-H2O solution.
+
+    Parameters:
+        x (float): Salt mass fraction [kg CaCl2 / kg solution].
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
+    Returns:
+        float: Specific heat capacity [kJ/(kg K)].
+
+    Source: Conde (2009).
     Author: Dorian Höffner
-    Date: 2024-11-04
-    Source: Conde 2009 "Aqueous solutions of lithium and calcium chlorides: property formulations for use in air conditioning equipment design" (2009)
     """
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "specific_heat_capacity", T, t_sol, x,
+                             prevent_errors)
 
-    # Coefficients
-    a = np.where(T <= 0, 830.54602, 88.7891)
-    b = np.where(T <= 0, -1247.52013, -120.1958)
-    c = np.where(T <= 0, -68.60350, -16.9264)
-    d = np.where(T <= 0, 491.27650, 52.4654)
-    e = np.where(T <= 0, -1.80692, 0.10826)
-    f = np.where(T <= 0, -137.51511, 0.46988)
+    # water cp coefficients (below/above 0 °C)
+    if T <= 0:
+        a, b, c = 830.54602, -1247.52013, -68.60350
+        d, e, f = 491.27650, -1.80692, -137.51511
+    else:
+        a, b, c = 88.7891, -120.1958, -16.9264
+        d, e, f = 52.4654, 0.10826, 0.46988
 
-    A = 1.63799
-    B = -1.69002
-    C = 1.05124
-    D = 0.0
-    E = 0.0
-    F = 58.5225
-    G = -105.6343
-    H = 47.7948
+    A, B, C = 1.63799, -1.69002, 1.05124
+    F, G, H = 58.5225, -105.6343, 47.7948
 
-    # Theta - reduced temperature
     Theta = (T + 273.15) / 228 - 1
 
-    # cpH2O calculation
-    cpH2O = (a + b * Theta**0.02 + c * Theta**0.04 + 
-             d * Theta**0.06 + e * Theta**1.8 + f * Theta**8)
+    cpH2O = (a + b * Theta**0.02 + c * Theta**0.04 + d * Theta**0.06
+             + e * Theta**1.8 + f * Theta**8)
 
-    # f1 calculation
     f1 = A * x + B * x**2 + C * x**3
-
-    # f2 calculation
     f2 = F * Theta**0.02 + G * Theta**0.04 + H * Theta**0.06
 
-    # cp calculation
     cp = cpH2O * (1 - f1 * f2)
 
-    return cp
+    return float(cp)
 
-    #return cp # specific heat capacity in kJ/kgK
 
-# DONE
-def dynamic_viscosity(x, T):
+def dynamic_viscosity(x, T, prevent_errors=False):
     """
-    Calculate the dynamic viscosity of a NaOH solution as a function of temperature and concentration.
-    The function is based on the following publication: "Aqueous solutions of lithium and calcium chlorides: property formulations for use in air conditioning equipment design" (2009)
-    ---
-    x: float
-        Concentration of NaOH in the solution [kg/kg]
-    T: float
-        Temperature of the solution [°C]
-    ---
-    returns: float
-        Dynamic viscosity of the solution [Pa s]
-    ---
-    Last Change: Dorian Höffner 10/2024
-    Author: O. Buchin 09/2010
+    Dynamic viscosity of an aqueous CaCl2-H2O solution.
+
+    Parameters:
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 1.
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
+    Returns:
+        float: Dynamic viscosity [Pa s].
+
+    Notes:
+        The water viscosity is obtained from pyXSteam (IAPWS-IF97) for
+        T > 0 °C and from the Conde (2009) sub-cooled water correlation
+        for T <= 0 °C.
+
+    Source: Conde (2009).
+    Authors: O. Buchin (2010); standardized: Dorian Höffner (2024/2026).
     """
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "dynamic_viscosity", T, t_sol, x,
+                             prevent_errors)
 
-    p = 1.01325  # bar
+    p_bar = 1.01325  # bar
 
-    # Coefficients
+    # Coefficients (Conde 2009, CaCl2)
     eta1 = -0.169310
     eta2 = 0.817350
     eta3 = 0.574230
     eta4 = 0.398750
-    
-    # Intermediate values
-    xi = x
-    zeta = xi / ((1 - xi) ** (1 / 0.6))
-    
-    # Coefficients for eta_H2O calculation
-    A = 1.0261862
-    B = 12481.702
-    C = -19510.923
-    D = 7065.286
-    E = -395.561
-    F = 143922.996
-    
-    # Reduced temperature
-    Theta = (T + 273.15) / 228 - 1
 
-    # Calculate eta_H2O for T <= 0 and T > 0
-    etaH2O_0 = steamTable.my_pt(p, 0.0000001)
-    eta_H2O = np.where(T <= 0, 
-                       etaH2O_0 * (A + B * Theta**0.02 + C * Theta**0.04 + D * Theta**0.08 + E * Theta**2.85 + F * Theta**8),
-                       steamTable.my_pt(p, T))
+    zeta = x / ((1 - x) ** (1 / 0.6))
 
-    
-    # Final viscosity calculation
+    # water viscosity [Pa s]
+    if T <= 0:
+        # Conde (2009) sub-cooled water correlation, anchored at 0 °C
+        A = 1.0261862
+        B = 12481.702
+        C = -19510.923
+        D = 7065.286
+        E = -395.561
+        F = 143922.996
+        Theta = (T + 273.15) / 228 - 1
+        etaH2O_0 = steamTable.my_pt(p_bar, 1e-7)
+        eta_H2O = etaH2O_0 * (A + B * Theta**0.02 + C * Theta**0.04
+                              + D * Theta**0.08 + E * Theta**2.85
+                              + F * Theta**8)
+    else:
+        eta_H2O = steamTable.my_pt(p_bar, T)
+
+    # solution viscosity
     TcH2O = 647.26  # K
-    Theta = (T + 273.15) / TcH2O
-    eta = eta_H2O * np.exp(eta1 * zeta**3.6 + eta2 * zeta + eta3 * zeta / Theta + eta4 * zeta**2)
-    
-    # Output in mPas
-    return float(eta * 1000)
+    Theta_c = (T + 273.15) / TcH2O
+    eta = eta_H2O * np.exp(eta1 * zeta**3.6 + eta2 * zeta
+                           + eta3 * zeta / Theta_c + eta4 * zeta**2)
 
-# DONE
-def diffusion_coefficient(x, T):
+    return float(eta)  # [Pa s]
+
+
+def diffusion_coefficient(x, T, prevent_errors=False):
     """
-    Computes the self diffusion coefficient of a CaCl2 solution.
+    Self diffusion coefficient of an aqueous CaCl2-H2O solution.
 
     Parameters:
-        T (np.ndarray or float): Temperature of the solution (in Celsius) (column vector).
-        x (np.ndarray or float): Concentration of solution (0 to 1) kgSalt/kgSolution (column vector).
-    
-    Returns:
-        float or np.ndarray: Self diffusion coefficient (m^2/s).
+        x (float): Salt mass fraction [kg CaCl2 / kg solution], 0 to 1.
+        T (float): Temperature [°C].
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
 
-    ---
-    Author: O. Buchin 03/2011 (original matlab)
-    Last change: Dorian Höffner 11/2024
-    Source: Holz, Manfred; Heil, Stefan R.; Sacco, Antonio "Temperature-dependent self-diffusion coefficients of water and six selected molecular liquids for calibration in accurate 1H NMR PFG measurements"
+    Returns:
+        float: Self diffusion coefficient [m²/s].
+
+    Sources:
+        Conde (2009); water self-diffusion after Holz, Heil, Sacco:
+        "Temperature-dependent self-diffusion coefficients of water and six
+        selected molecular liquids for calibration in accurate 1H NMR PFG
+        measurements".
+    Authors: O. Buchin (2011, MATLAB); standardized: Dorian Höffner
+        (2024/2026).
     """
-    
-    # Self Diffusion coefficient for water
-    D0 = 1.635e-8  # m^2/s
+    # crystallization check
+    t_sol = solubility_temperature(x, prevent_errors=True)
+    if T < t_sol:
+        warn_crystallization(_MODULE, "diffusion_coefficient", T, t_sol, x,
+                             prevent_errors)
+
+    # self diffusion coefficient of water
+    D0 = 1.635e-8  # m²/s
     TS = 215.05    # K
     gamma = 2.063
-    
     Dw = D0 * (((T + 273.15) / TS) - 1) ** gamma
-    
-    # Self Diffusion coefficient for solution
+
+    # solution coefficients (Conde 2009, CaCl2)
     d1 = 0.55
     d2 = -5.52
     d3 = -0.56
-    
+
     D = Dw * (1 - (1 + (np.sqrt(x) / d1) ** d2) ** d3)
-    
-    # Return as float if input is scalar
-    return float(D) if np.isscalar(D) else D
 
-# NOT AVAILABLE YET
-def thermal_conductivity(x, T, p):
-    """
-    Calculate the thermal conductivity of a NaOH solution as a function of temperature and concentration.
-    The function is based on the following publication:
-    ---
-    x: float
-        Concentration of NaOH in the solution [kg/kg]
-    T: float
-        Temperature of the solution [°C]
-    ---
-    returns: float
-        Thermal conductivity of the solution [W/mK]
-    ---
-    """
-    print("Thermal conductivity function not implemented yet.")
+    return float(D)
 
-    #return lambda_NaOH # [W/mK]
+
+def solubility_temperature(x, prevent_errors=False):
+    """
+    Crystallization (solubility) temperature of an aqueous CaCl2-H2O solution.
+
+    Parameters:
+        x (float or array-like): Salt mass fraction [kg CaCl2 / kg solution],
+            0 to 0.78.
+        prevent_errors (bool): If True, suppress warnings and return NaN
+            instead of raising errors.
+
+    Returns:
+        float or np.ndarray: Crystallization temperature [°C].
+
+    Source: Conde (2009).
+    """
+    x_arr = np.atleast_1d(np.asarray(x, dtype=float))
+    scalar = np.isscalar(x) or np.ndim(x) == 0
+
+    if np.any(x_arr < 0) or np.any(x_arr > 0.78):
+        if prevent_errors:
+            return float("nan") if scalar else np.full(x_arr.shape, np.nan)
+        raise ValueError(_msg(_MODULE, "solubility_temperature",
+                              f"concentration x = {x} outside the valid "
+                              f"range 0..0.78 kg/kg."))
+
+    # Coefficients (Conde 2009, CaCl2)
+    A0 = np.array([0.422088, -0.378950, -0.519970, -1.149044, -2.385836,
+                   -2.807560])
+    A1 = np.array([-0.066933, 3.456900, 3.400970, 5.509111, 8.084829,
+                   4.678250])
+    A2 = np.array([-0.282395, -3.531310, -2.851290, -4.642544, -5.303476,
+                   0.000000])
+    A3_ice = -355.514247
+
+    TcH2O = 647.26  # K
+
+    t = np.zeros((x_arr.size, 6))
+
+    # ice line (k = 0)
+    theta = A0[0] + A1[0] * x_arr + A2[0] * x_arr**2.0 + A3_ice * x_arr**7.5
+    t[:, 0] = theta * TcH2O - 273.15
+
+    # hydrates (k = 1..5)
+    for k in range(1, 6):
+        theta = A0[k] + A1[k] * x_arr + A2[k] * x_arr**2.0
+        t[:, k] = theta * TcH2O - 273.15
+
+    ts = np.max(t, axis=1)
+
+    return float(ts[0]) if scalar else ts
+
+
+# ---------------------------------------------------------------------------
+# Diagrams
+# ---------------------------------------------------------------------------
 
 def hxDiagram(editablePlot=False):
     """
-    Plots the enthalpy-concentration (h-x) diagram for CaCl₂-H₂O solutions over a range of temperatures.
-    
-    Parameters:
-        editablePlot (bool, optional): If True, the plot remains open for further editing (e.g., in interactive
-            environments). If False (default), the plot is displayed immediately.
-    Notes:
-        - The crystallization curve indicates the onset of salt crystallization in the solution.
+    Plots the enthalpy-concentration diagram for CaCl2-H2O solutions.
 
-    Author: Dorian Höffner 2024-11-22    
+    Parameters:
+        editablePlot (bool): If True, the figure is left open so it can be
+            modified with matplotlib before showing.
 
     Returns:
         None
+
+    Author: Dorian Höffner
     """
+    with suppress_warnings():
+        plt.figure(dpi=300)
+        T_array = np.array(range(0, 101, 2))
+        x_array = np.linspace(0.001, 0.6, 50)
 
-    # suppress all print statements
-    devnull = open(os.devnull, 'w')
-    stout_old = sys.stdout
-    sys.stdout = devnull
+        for T in T_array:
+            h_array = np.array([enthalpy(x, T, prevent_errors=True)
+                                for x in x_array])
+            if T % 20 == 0:
+                plt.plot(x_array, h_array, color='black', alpha=0.7, lw=0.8,
+                         zorder=0)
+                label_posx = x_array[15] + 0.01
+                plt.text(label_posx, h_array[15] + 10, f'{T} °C', fontsize=8,
+                         color='black')
+            else:
+                plt.plot(x_array, h_array, color='black', alpha=0.2, lw=0.2,
+                         zorder=0)
 
-    plt.figure(dpi=300)
-    T_array = np.array(range(0, 101, 2))
-    x_array = np.linspace(0.001, 0.6, 50)
+        plt.xlabel('Concentration $x=[kg_{CaCl_{2}}/kg_{solution}]$')
+        plt.ylabel('Enthalpy $h=[kJ/kg]$')
+        plt.xlim(0, 0.6)
+        plt.ylim(-50, 800)
 
-    for T in T_array:
-        h_array = np.array([enthalpy(x, T, prevent_errors=True) for x in x_array])
-        if T%20 == 0:
-            plt.plot(x_array, h_array, color='black', alpha=0.7, lw=0.8, zorder=0)
-            label_posx = x_array[15] + 0.01
-            plt.text(label_posx, h_array[15]+10, f'{T} °C', fontsize=8, color='black')
-        else:
-            plt.plot(x_array, h_array, color='black', alpha=0.2, lw=0.2, zorder=0)
-
-    plt.xlabel('Concentration $x=[kg_{CaCl_{2}}/kg_{solution}]$')
-    plt.ylabel('Enthalpy $h=[kJ/kg]$')
-    plt.xlim(0, 0.6)
-    plt.ylim(-50, 800)
-
-    # plot crystallization curve
-    cryst_data = crystallization_curve(return_data=True)
-    cryst_x = np.array([x for x, T in cryst_data], dtype=float).flatten()
-    cryst_T = np.array([T[0] for x, T in cryst_data], dtype=float).flatten()
-    cryst_h = np.array([enthalpy(x, T) if T > 0 else np.nan for x, T in cryst_data], dtype=float).flatten()
-    plt.plot([x for x, T in cryst_data], [h for x, h in zip(cryst_data, cryst_h)],
-             color='black', linestyle="--", lw=0.5,
-             label='Crystallization Curve', zorder=101)
-    # fill between crystallization curve and xaxis
-    plt.fill_between(cryst_x, cryst_h, -50, where=(cryst_h > -50), color='white', zorder=100)
+        # crystallization curve
+        cryst_data = crystallization_curve(return_data=True)
+        cryst_x = np.array([x for x, T in cryst_data])
+        cryst_h = np.array([enthalpy(x, T, prevent_errors=True)
+                            if T > 0 else np.nan
+                            for x, T in cryst_data])
+        plt.plot(cryst_x, cryst_h, color='black', linestyle="--", lw=0.5,
+                 label='Crystallization Curve', zorder=101)
+        plt.fill_between(cryst_x, np.nan_to_num(cryst_h, nan=-50), -50,
+                         where=(np.nan_to_num(cryst_h, nan=-50) > -50),
+                         color='white', zorder=100)
 
     if not editablePlot:
         plt.show()
 
-# DONE
+
 def pTDiagram(log=True, invT=True, editablePlot=False, show_percentages=True):
     """
-    Plots the pressure-temperature diagram for NaOH-H2O solutions.
-    Author: Dorian Höffner 2024-04-26
-    Last Change: 2024-09-17
-    
+    Plots the pressure-temperature diagram for CaCl2-H2O solutions.
+
     Parameters:
-        log (bool): If True, the y-axis will be logarithmic.
-        invT (bool): If True, the x-axis will be scaled as -1/T.
-        editablePlot (bool): If True, the plot will be editable.
-        show_percentages (bool): If True, the concentrations will be labeled.
+        log (bool): If True, the y-axis is logarithmic.
+        invT (bool): If True, the x-axis is scaled as -1/T.
+        editablePlot (bool): If True, the figure is left open so it can be
+            modified with matplotlib before showing.
+        show_percentages (bool): If True, the concentrations are labeled.
 
     Returns:
         None
+
+    Author: Dorian Höffner
     """
+    with suppress_warnings():
+        # crystallization curve data
+        cryst_data = crystallization_curve(return_data=True)
+        cryst_T = np.array([T for x, T in cryst_data])
+        cryst_p = np.array([saturation_pressure(x, T, prevent_errors=True)
+                            for x, T in cryst_data])
 
-    # turn off print statements
-    devnull = open(os.devnull, 'w')
-    stdout_old = sys.stdout
-    sys.stdout = devnull
+        # temperature range
+        temperaturesC = np.arange(0, 110, 1)
+        temperaturesK = temperaturesC + 273.15
+        concentrations = np.arange(0.1, 0.6, 0.01)
 
-    
-    steamTable = XSteam(XSteam.UNIT_SYSTEM_MKS)  # m/kg/sec/°C/bar/W
+        plt.figure(dpi=300)
+        plotTemperatures = np.arange(0, 101, 10) + 273.15
 
-    # get data to plot crystallization curve
-    cryst_data = crystallization_curve(return_data=True)
-    cryst_T = np.array([T for x, T in cryst_data]).flatten()
-    cryst_p = np.array([saturation_pressure(x, T) for x, T in cryst_data]).flatten()
-    
-    # Temperature range
-    temperaturesC = np.arange(0, 110, 1)
-    temperaturesK = temperaturesC + 273.15
-    concentrations = np.arange(0.1, 0.69, 0.01)
-    cr_temperaturesC = cryst_T
-    cr_temperaturesK = cryst_T + 273.15
-    
-    # Prepare the plot
-    plt.figure(dpi=300)
-    
-    # these temperatures are used for the x-axis
-    plotTemperatures = np.arange(0, 101, 10) + 273.15
-    
-    # Calculate water vapor pressure using XSteam
-    waterPressure = [steamTable.psat_t(T - 273.15) * 1e5 for T in temperaturesK]  # convert bar to Pa
-    
-    # Plot the data
-    for x in concentrations:
+        waterPressure = [steamTable.psat_t(T - 273.15) * 1e5
+                         for T in temperaturesK]  # bar -> Pa
 
-        # Calculate saturation pressure for each temperature at the given concentration
-        p = []
-        for T in temperaturesC:
-            p.append(saturation_pressure(x, T))  # Assuming PressureNaOH is defined elsewhere
+        temp_plot = -1 / temperaturesK if invT else temperaturesK
+        temp_plot_cryst = -1 / (cryst_T + 273.15) if invT else cryst_T + 273.15
+        label_pos = temp_plot[-1] + 1e-5 if invT else temp_plot[-1] + 2
 
-    
-        # Set color and line width
-        color = "black" if int(np.round(x * 100)) % 10 == 0 else "grey"
-        lw = 1.0 if color == "black" else 0.25
-        
-        # Plotting based on conditions
-        temp_plot       = -1/temperaturesK     if invT else temperaturesK
-        temp_plot_cryst = -1/(cryst_T+273.15)  if invT else cryst_T+273.15
-        ylabel = 'Saturation Pressure [Pa]' if log else 'Saturation Pressure [Pa]'
-        xlabel = 'Temperature [°C]' if invT else 'Temperatur [°C]'
-        
-        # Plot isosteres
+        for x in concentrations:
+            p = [saturation_pressure(x, T, prevent_errors=True)
+                 for T in temperaturesC]
+
+            color = "black" if int(np.round(x * 100)) % 10 == 0 else "grey"
+            lw = 1.0 if color == "black" else 0.25
+
+            if log:
+                plt.semilogy(temp_plot, p, color=color, lw=lw)
+            else:
+                plt.plot(temp_plot, p, color=color, lw=lw)
+
+            if (show_percentages and int(np.round(x * 100)) % 10 == 0
+                    and x > 0.29):
+                plt.text(label_pos, p[-1], f'{x * 100:.0f} %', fontsize=8,
+                         color='black')
+
+        plt.ylabel('Saturation Pressure [Pa]')
+        plt.xlabel('Temperature [°C]')
+        plt.xticks(-1 / plotTemperatures if invT else plotTemperatures,
+                   [f"{t - 273.15:.0f}" for t in plotTemperatures])
+
+        # concentration unit label
+        if show_percentages:
+            plt.text(label_pos, p[-1] * 0.85,
+                     r'$\left[\frac{\mathrm{kg_{CaCl_2}}}{\mathrm{kg_{Solution}}}\right]$',
+                     fontsize=11, color='black')
+
+        # water line
         if log:
-            plt.semilogy(temp_plot, p, color=color, lw=lw)
+            plt.semilogy(temp_plot, waterPressure, color="grey",
+                         linestyle='--', label='Pure Water')
         else:
-            plt.plot(temp_plot, p, color=color, lw=lw)
-        
-        plt.ylabel(ylabel)
-        plt.xlabel(xlabel)
-        #plt.xticks(-1/plotTemperatures if invT else plotTemperatures, plotTemperatures - 273.15)
-        plt.xticks(-1/plotTemperatures if invT else plotTemperatures, [f"{t-273.15:.0f}" for t in plotTemperatures])
-        
-        # Label concentrations
-        if show_percentages and int(np.round(x * 100)) % 10 == 0 and x>0.29:
-            label_pos = temp_plot[-1] + 1e-5 if invT else temp_plot[-1]+2
-            plt.text(label_pos, p[-1], f'{x * 100:.0f} %', fontsize=8, color='black')#
-
-    # add description for concentration: % = "kg NaOH / kg solution"
-    plt.text(label_pos, p[-1] * 0.85, r'$\left[\frac{\mathrm{kg_{CaCl_2}}}{\mathrm{kg_{Solution}}}\right]$', fontsize=11, color='black')
-
-    # Plotting water line
-    if log:
-        plt.semilogy(temp_plot, waterPressure, color="grey", linestyle='--',
+            plt.plot(temp_plot, waterPressure, color="grey", linestyle='--',
                      label='Pure Water')
-    else:
-        plt.plot(temp_plot, waterPressure, color="grey", linestyle='--', label='Pure Water')
 
-    # Plotting crystallization curve
-    if log:
-        plt.semilogy(temp_plot_cryst, cryst_p, color="gray", linestyle='-',
-                    lw=1.0, label='Crystallization Curve', zorder=101)
-        # fill area between crystallization curve and the minimum positive value (e.g., 1)
-        plt.fill_between(temp_plot_cryst, cryst_p, 1, where=(cryst_p > 1), color='white', zorder=100)
-    else:
-        plt.plot(temp_plot_cryst, cryst_p, color="gray", linestyle='-',
-                 lw=1.0, label='Crystallization Curve', zorder=101)
-        # fill area between crystallization curve and a fixed value (e.g., 50)
-        plt.fill_between(temp_plot_cryst, cryst_p, 1, where=(cryst_p > 1),  color='white', zorder=100)
+        # crystallization curve
+        if log:
+            plt.semilogy(temp_plot_cryst, cryst_p, color="gray",
+                         linestyle='-', lw=1.0, label='Crystallization Curve',
+                         zorder=101)
+        else:
+            plt.plot(temp_plot_cryst, cryst_p, color="gray", linestyle='-',
+                     lw=1.0, label='Crystallization Curve', zorder=101)
+        plt.fill_between(temp_plot_cryst, np.nan_to_num(cryst_p, nan=1), 1,
+                         where=(np.nan_to_num(cryst_p, nan=0) > 1),
+                         color='white', zorder=100)
 
-    
+        # axis limits
+        if invT:
+            plt.xlim(-1 / temperaturesK[0], -1 / temperaturesK[-1])
+        else:
+            plt.xlim(temperaturesK[0], temperaturesK[-1])
+        if log:
+            plt.ylim(220, 1.1e5)
+        else:
+            plt.ylim(0, max(waterPressure) * 1.1)
 
-    # Setting axis limits
-    if invT:
-        plt.xlim(-1/temperaturesK[0], -1/temperaturesK[-1])
-    else:
-        plt.xlim(temperaturesK[0], temperaturesK[-1])
-    
-    if log:
-        plt.ylim(220, 1.1e5)
-    else:
-        plt.ylim(0, max(waterPressure) * 1.1)  # Adjust as needed to make sure all data is visible
+        plt.legend()
 
-
-    plt.legend()
-    
     if not editablePlot:
         plt.show()
 
-    # turn on print statements again
-    sys.stdout = stdout_old
 
-# DONE
-def solubility_temperature(xs):
-    """
-    Computes the solubility boundary temperature with salt concentration xs.
-
-    Parameters:
-        xs (array-like): Concentration of solution (0...1) kgSalt/kgSolution (column vector).
-
-    Returns:
-        ts (numpy array): Temperature of crystallization (column vector). If xs is a scalar, ts is a scalar.
-
-    Restrictions:
-        - The concentration of salt must be between 0.0 and 0.78.
-    """
-
-    if np.any(xs < 0) or np.any(xs > 0.78):
-        raise ValueError("The concentration of salt must be between 0.0 and 0.78.")
-
-    # Coefficients
-    A0 = np.array([0.422088, -0.378950, -0.519970, -1.149044, -2.385836, -2.807560])
-    A1 = np.array([-0.066933, 3.456900, 3.400970, 5.509111, 8.084829, 4.678250])
-    A2 = np.array([-0.282395, -3.531310, -2.851290, -4.642544, -5.303476, 0.000000])
-    A3 = np.array([-355.514247])
-
-    # Reduced temperature
-    TcH2O = 647.26  # K
-
-    # Initialize temperature array
-    if isinstance(xs, (list, np.ndarray)):
-        t = np.ones((6, len(xs)))
-    else:
-        t = np.ones((6, 1))
-
-    # Iceline
-    k = 0
-    theta = A0[k] + A1[k] * xs + A2[k] * xs ** 2.0 + A3[k] * xs ** 7.5
-    t[k] = theta * TcH2O - 273.15
-
-    # Hydrates
-    for k in range(1, 6):
-        theta = A0[k] + A1[k] * xs + A2[k] * xs ** 2.0
-        t[k] = theta * TcH2O - 273.15
-
-    ts = np.max(t, axis=0)
-
-    if len(ts.shape) == 1:
-        ts = ts[0]
-    return ts
-
-# DONE
 def crystallization_curve(return_data=False):
-    """    
-    Author: Dorian Höffner
-    Date: 2024-11-20
-    Publication: Conde 2009 "Aqueous solutions of lithium and calcium chlorides: property formulations for use in air conditioning equipment design"
+    """
+    Plots (or returns) the crystallization curve of CaCl2-H2O solutions.
+
+    The curve is generated from solubility_temperature() (Conde 2009) on
+    the concentration range 0.01..0.78 kg/kg.
 
     Parameters:
-        return_data (bool): If True, the data will be returned as a list of lists.
+        return_data (bool): If True, returns the curve as a list of
+            [x (kg/kg), T (°C)] pairs instead of plotting.
 
     Returns:
-        None or list of lists: If return_data is True, the data will be returned as a list of lists (x, T).
-    """
+        None or list of [float, float]: The data if return_data is True.
 
-    # cryst_data = x, T // create cryst_data based on "solubility_temperate"
+    Author: Dorian Höffner
+    """
     xs_array = np.linspace(0.01, 0.78, 100)
-    cryst_data = [[xs, solubility_temperature(xs)] for xs in xs_array]
-    temperatures = [item[1] for item in cryst_data]
-    
-        
+    ts_array = solubility_temperature(xs_array, prevent_errors=True)
+
     if return_data:
-        return cryst_data
-    
-    else:
-        cryst_data = [[xs_array[i]*100, temperatures[i]] for i,_ in enumerate(xs_array)]
-        # prepare plot
-        plt.figure(figsize=(6,4), dpi=300)
-        plt.plot([x[0] for x in cryst_data],
-                    [x[1] for x in cryst_data],
-                    label='Crystallization Curve',
-                    color="black")
-        plt.xlabel(r'$\mathrm{CaCl_2}$ Concentration [%]')
-        plt.ylabel('Temperature [°C]')
-        plt.xlim(0, 75)
-        plt.ylim(-60, 200)
-        # make beautiful grid
-        plt.grid(True)
-        plt.minorticks_on()
-        plt.grid(which='major', linestyle='-', linewidth='0.2', color='black')
-        plt.grid(which='minor', linestyle=':', linewidth='0.1', color='black')
-        # add legend (top left)
-        plt.legend(loc='upper left')
+        return [[float(xs), float(ts)] for xs, ts in zip(xs_array, ts_array)]
+
+    plt.figure(figsize=(6, 4), dpi=300)
+    plt.plot(xs_array * 100, ts_array, label='Crystallization Curve',
+             color="black")
+    plt.xlabel(r'$\mathrm{CaCl_2}$ Concentration [%]')
+    plt.ylabel('Temperature [°C]')
+    plt.xlim(0, 78)
+    plt.ylim(-60, 200)
+    plt.grid(True)
+    plt.minorticks_on()
+    plt.grid(which='major', linestyle='-', linewidth='0.2', color='black')
+    plt.grid(which='minor', linestyle=':', linewidth='0.1', color='black')
+    plt.legend(loc='upper left')

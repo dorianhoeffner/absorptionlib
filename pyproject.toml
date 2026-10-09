@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "absorptionlib"
+version = "1.1.0"
+description = "Thermophysical properties of salt solutions (NaOH, LiBr, LiCl, CaCl2) for absorption systems"
+readme = "README.md"
+license = { file = "LICENSE.txt" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Dorian Höffner", email = "dorian.hoeffner@tu-berlin.de" },
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "pyXSteam",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[tool.setuptools.packages.find]
+include = ["absorptionlib*"]
