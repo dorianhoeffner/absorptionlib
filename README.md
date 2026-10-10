@@ -16,9 +16,10 @@ DOI: https://doi.org/10.18462/iir.tptpr2025.1130
 
 Explore the property functions interactively, without installing anything:
 p–T, h–x and solubility diagrams, a property calculator with matching
-absorptionlib code, and a storage-cycle analysis comparing all four salts
-(method: Höffner, Ziegler & Elbel 2026, *Energy Conversion and Management* 366,
-121845, https://doi.org/10.1016/j.enconman.2026.121845).
+absorptionlib code, and a storage-cycle analysis comparing all four salts for
+single- and double-stage processes, with and without crystallisation in the
+store (method: Höffner, Ziegler & Elbel 2026, *Energy Conversion and Management*
+366, 121845, https://doi.org/10.1016/j.enconman.2026.121845).
 
 **https://dorianhoeffner.github.io/absorptionlib/**
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Absorption Atlas</title>
-<meta name="description" content="Interactive p–T, h–x and solubility diagrams, property calculator and storage analysis for aqueous NaOH, LiBr, LiCl and CaCl2 solutions, based on the Python library absorptionlib.">
+<meta name="description" content="Interactive p–T, h–x and solubility diagrams, property calculator and storage analysis (single- and double-stage, with and without crystallisation) for aqueous NaOH, LiBr, LiCl and CaCl2 solutions, based on the Python library absorptionlib.">
 <meta name="author" content="Dorian Höffner">
 <link rel="canonical" href="https://dorianhoeffner.github.io/absorptionlib/">
 <meta property="og:type" content="website">
@@ -646,6 +646,38 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
 #cycleTable td.val { white-space: nowrap; }
 .tbl-note { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; text-wrap: pretty; }
 .warnline { color: var(--warn); font-size: 12.5px; display: block; font-weight: 500; }
+/* process selector + schematic */
+.proc-sel { display: grid; gap: 8px; }
+.proc-sel .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.proc-sel .row > span { font-size: 13.5px; color: var(--ink-2); }
+.proc-desc { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-wrap: pretty; line-height: 1.45; }
+.proc-desc b { color: var(--ink); font-weight: 600; }
+.cycle-row { display: grid; grid-template-columns: minmax(0, 1fr) 344px; gap: 0; align-items: stretch; }
+.cycle-row .schem-wrap { border-left: 1px solid var(--rule); padding: 8px 14px 12px; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.schem-wrap .eyebrow { margin-top: 4px; }
+.schem svg { display: block; width: 100%; height: auto; overflow: visible; font-family: var(--font-sans); }
+.schem .box { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.2; }
+.schem .tank { fill: var(--surface-2); stroke: var(--ink-2); stroke-width: 1.2; }
+.schem .lbl { fill: var(--ink); font-size: 12.5px; font-weight: 600; }
+.schem .sub { fill: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.schem .val { fill: var(--ink-2); font-size: 11.5px; font-variant-numeric: tabular-nums; paint-order: stroke; stroke: var(--surface); stroke-width: 3px; stroke-linejoin: round; }
+.schem .flow { fill: none; stroke: var(--ink-2); stroke-width: 1.4; }
+.schem .flow.rec { stroke-dasharray: 3 3; }
+.schem .vap { fill: none; stroke: var(--ink-2); stroke-width: 2.2; stroke-dasharray: 1 4; stroke-linecap: round; }
+.schem .hot { stroke: var(--bad); }
+.schem .cold { stroke: var(--c-NaOH); }
+.schem .coil { fill: none; stroke-width: 1.6; }
+.schem .heat { fill: none; stroke: var(--bad); stroke-width: 1.6; }
+.schem .hatchfill { stroke: none; }
+.schem-note { font-size: 12px; color: var(--muted); margin: 0; text-wrap: pretty; }
+.lift-tools { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.lift-tools .lbl { font-size: 13px; color: var(--muted); }
+.chart.busy { opacity: 0.5; transition: opacity 0.15s ease; }
+.legend svg { display: inline-block; vertical-align: middle; overflow: visible; }
+.linkish { border: 0; background: none; padding: 0; color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--grid-strong); text-underline-offset: 3px; cursor: pointer; font-size: 12.5px; }
+.linkish:hover { color: var(--ink); text-decoration-color: var(--ink); }
+.bar-row .tick-ref { position: absolute; top: 0; height: 18px; width: 0; border-left: 2px solid var(--ink); opacity: 0.55; }
+.hero .proc-name { font-size: 13px; color: var(--ink-2); font-weight: 600; margin-top: -2px; }
 .tooltip {
   position: absolute;
   pointer-events: none;
@@ -730,6 +762,10 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   .readout { position: static; }
   .side-card { position: static; }
   .duo { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .cycle-row { grid-template-columns: minmax(0, 1fr); }
+  .cycle-row .schem-wrap { border-left: 0; border-top: 1px solid var(--rule); }
 }
 @media (max-width: 640px) {
   body { font-size: 14.5px; }
@@ -893,18 +929,34 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
           <div class="card">
             <div class="card-h">
               <h3 data-i18n="liftTitle"></h3>
-              <span class="sub" id="liftSub"></span>
+              <div class="lift-tools">
+                <span class="lbl" data-i18n="cmpLbl"></span>
+                <div class="seg small" role="group" id="cmpSeg" aria-label="Compare">
+                  <button type="button" data-cmp="proc" data-i18n="cmpProc"></button>
+                  <button type="button" data-cmp="pairs" data-i18n="cmpPairs"></button>
+                </div>
+              </div>
             </div>
+            <div class="card-h" style="padding-top:2px"><span class="sub" id="liftSub"></span></div>
             <div class="chart" id="chartLift" style="min-height:280px"></div>
-            <div class="chart-foot"><span class="legend" id="liftLegend"></span><span id="liftDl"></span></div>
+            <div class="chart-foot"><span class="legend" id="liftLegend"></span><span class="lift-tools" id="liftPub"></span><span id="liftDl"></span></div>
           </div>
           <div class="card">
             <div class="card-h">
               <h3 data-i18n="cycleTitle"></h3>
               <span class="sub" id="cycleSub"></span>
             </div>
-            <div class="chart" id="chartCycle" style="min-height:280px"></div>
-            <div class="chart-foot"><span class="legend" id="cycleLegend"></span><span id="cycleDl"></span></div>
+            <div class="cycle-row">
+              <div style="min-width:0">
+                <div class="chart" id="chartCycle" style="min-height:280px"></div>
+                <div class="chart-foot"><span class="legend" id="cycleLegend"></span><span id="cycleDl"></span></div>
+              </div>
+              <div class="schem-wrap">
+                <div class="eyebrow" data-i18n="schemTitle"></div>
+                <div class="schem" id="schem"></div>
+                <p class="schem-note" id="schemNote"></p>
+              </div>
+            </div>
           </div>
           <div class="card">
             <div class="card-h">
@@ -944,7 +996,9 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
  * Browser port of absorptionlib v1.0.14 (D. Höffner, MIT licence) for the
  * working pairs NaOH–H2O, LiBr–H2O, LiCl–H2O and CaCl2–H2O, plus a few
  * supplements (IAPWS water properties, Pátek & Klomfar enthalpy / cp for LiBr,
- * Fleßner & Ziegler LiBr viscosity) and the storage-cycle model.
+ * Fleßner & Ziegler LiBr viscosity) and the storage-cycle model with the four
+ * process arrangements of Höffner, Ziegler & Elbel (2026): single-/double-stage,
+ * with and without crystallisation.
  *
  * Units at the API: temperature °C, pressure Pa, mass fraction kg salt / kg
  * solution, enthalpy kJ/kg, cp kJ/(kg K), density kg/m³, viscosity Pa s,
@@ -1508,6 +1562,33 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     }
     return Infinity;                // drier than the correlation reaches
   }
+  // same as xeq, but brackets outward from a nearby guess (fast inside iterations)
+  function xeqNear(f, T, p, xg) {
+    const top = f.xCalcMax || f.xMax;
+    if (!(xg > 1e-6 && xg < top)) return xeq(f, T, p);
+    const lp = Math.log(p), g = x => Math.log(f.p(x, T)) - lp;
+    let a = xg, ga = g(a), step = 0.004;
+    if (!isFinite(ga)) return xeq(f, T, p);
+    if (ga > 0) {                       // root lies at larger x
+      for (let i = 0; i < 40; i++) {
+        const b = Math.min(top, a + step), gb = g(b);
+        if (!isFinite(gb)) return xeq(f, T, p);
+        if (gb <= 0) return brent(g, a, b, 1e-12);
+        if (b >= top) return Infinity;
+        a = b; step *= 2;
+      }
+    } else {                            // root lies at smaller x
+      let b = a;
+      for (let i = 0; i < 40; i++) {
+        const c = Math.max(1e-7, b - step), gc = g(c);
+        if (!isFinite(gc)) return xeq(f, T, p);
+        if (gc > 0) return brent(g, c, b, 1e-12);
+        if (c <= 1e-7) return 0;
+        b = c; step *= 2;
+      }
+    }
+    return xeq(f, T, p);
+  }
   // largest liquid concentration at T (upper branch of the liquidus)
   const _xlmCache = new Map();
   function xLiquidMax(f, T) {
@@ -1580,57 +1661,187 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
 
   // ===========================================================================
   // Storage cycle (closed absorption thermal energy storage)
+  // ---------------------------------------------------------------------------
+  // Four process arrangements after Höffner, Ziegler & Elbel (2026), Sect. 2.2:
+  //   single       single-stage, no crystallisation          (Fig. 3)
+  //   singleCryst  single-stage, crystals in the conc. tank  (Fig. 4, "three-phase")
+  //   double       two absorbers in series                   (Fig. 5)
+  //   doubleCryst  two absorbers in series + crystals        (Fig. 6)
+  // All balances are written per kg of anhydrous salt and use absolute solution
+  // enthalpies (Eq. 3/8/14/20). Ideal components: every absorber outlet is in
+  // equilibrium with the heat-transfer fluid entering it, and the stored
+  // solution is recuperatively preheated to the temperature at which the
+  // dilute solution leaves the absorber train (but never below storage
+  // temperature, where it would crystallise).
   // ===========================================================================
+  const PROCESSES = ['single', 'singleCryst', 'double', 'doubleCryst'];
+  const procInfo = p => ({ stages: p === 'double' || p === 'doubleCryst' ? 2 : 1, cryst: p === 'singleCryst' || p === 'doubleCryst' });
+  // density of the crystallised phase (anhydrous salt, as in the paper's mass balance), kg/m³
+  const RHO_SOLID = { NaOH: 2130, LiBr: 3464, LiCl: 2068, CaCl2: 2150 };
+
+  // one absorber: solution x_in at T_in, vapour from an evaporator at Tv,
+  // outlet in equilibrium at T_out. Per kg salt: water absorbed w, heat Q.
+  function absorber(f, xin, Tin, Tout, Tv) {
+    const xout = xeq(f, Tout, water.psat(Tv));
+    if (!(xout > 0) || !isFinite(xout) || xout >= xin) return { ok: false, xout };
+    const w = 1 / xout - 1 / xin;
+    const hout = f.h(xout, Tout);
+    return { ok: true, xin, xout, w, hout, Q: f.h(xin, Tin) / xin + w * water.hV(Tv) - hout / xout };
+  }
+
+  // single-stage discharge of solution x_in (Eq. 1–5)
+  function dischargeSingle(f, xin, Ta, Te, Ts) {
+    const Tin = Math.max(Ta, Ts);
+    const a = absorber(f, xin, Tin, Ta, Te);
+    if (!a.ok) return { ok: false, xout: a.xout };
+    return { ok: true, xout: a.xout, Q: a.Q, wAmb: a.w, Tin, stages: [{ xin, xout: a.xout, Tin, Tout: Ta, Tv: Te, w: a.w, Q: a.Q }] };
+  }
+
+  // double-stage discharge (Eq. 12–17). Upper absorber (heating side) takes vapour
+  // from evaporator 2 at T_m; the lower absorber runs at T_m, absorbs vapour from
+  // evaporator 1 at T_evap and its heat evaporates the water for the upper stage:
+  //   Q_lower = w_upper · (h''(T_m) − h'(T_store))
+  function dischargeDouble(f, xin, Ta, Te, Ts) {
+    const pe = water.psat(Te), hLw = water.hL(Ts);
+    let g1 = NaN, g2 = NaN;                                   // warm starts for the equilibrium solves
+    const X1 = Tm => { const v = xeqNear(f, Ta, water.psat(Tm), g1); if (v > 0 && isFinite(v)) g1 = v; return v; };
+    const X2 = Tm => { const v = xeqNear(f, Tm, pe, g2); if (v > 0 && isFinite(v)) g2 = v; return v; };
+    const ev = Tm => {
+      const Tin = Math.max(Tm, Ts);
+      const x1 = X1(Tm);
+      if (!(x1 > 0) || !isFinite(x1) || x1 >= xin) return { code: 1 };          // upper stage cannot absorb
+      const x2 = X2(Tm);
+      if (!(x2 > 0) || !isFinite(x2) || x2 >= x1) return { code: 2, x1, x2 };    // lower stage cannot absorb
+      const w1 = 1 / x1 - 1 / xin, w2 = 1 / x2 - 1 / x1;
+      const h1 = f.h(x1, Ta);
+      const Qhi = f.h(xin, Tin) / xin + w1 * water.hV(Tm) - h1 / x1;
+      const Qlo = h1 / x1 + w2 * water.hV(Te) - f.h(x2, Tm) / x2;
+      const need = w1 * (water.hV(Tm) - hLw);
+      return { code: 0, r: Qlo - need, Tm, Tin, x1, x2, w1, w2, Qhi, Qlo, need };
+    };
+    // feasible window for T_m: above the dew point of the stored solution at T_abs
+    // (else the upper stage absorbs nothing) and below the temperature at which the
+    // lower stage stops absorbing (x2 = x1)
+    const pin = f.p(xin, Ta);
+    if (!(pin < water.psat(Ta))) return { ok: false };
+    const lo = Math.max(Te, water.Tsat(pin));
+    if (!(Ta > lo)) return { ok: false };
+    const x1of = Tm => { const v = X1(Tm); return isFinite(v) ? Math.min(Math.max(0, v), xin) : xin; };
+    const x2of = Tm => { const v = X2(Tm); return isFinite(v) ? Math.max(0, v) : Infinity; };
+    // x2 − x1 rises monotonically with T_m: negative at lo, positive at T_abs
+    const gx = Tm => { const d = x2of(Tm) - x1of(Tm); return isFinite(d) ? d : 1; };
+    let hi = brent(gx, lo, Ta, 1e-7);
+    if (!isFinite(hi)) return { ok: false };
+    if (gx(hi) >= 0) hi -= 2e-7;
+    if (!(hi > lo + 1e-7)) return { ok: false };
+    // r(T_m) = Q_lower − duty of evaporator 2 falls from >0 (near lo) to <0 (near hi)
+    const span = hi - lo;
+    let ta = lo, ea = { code: -1 };
+    for (const fr of [1e-3, 1e-2, 5e-2, 0.15]) { ta = lo + fr * span; ea = ev(ta); if (ea.code === 0 && ea.r > 0) break; }
+    let tb = hi - 1e-6 * span, eb = ev(tb);
+    if (ea.code !== 0 || eb.code !== 0 || ea.r * eb.r > 0) {
+      // fall back to a scan for a sign change
+      let prev = null, found = false;
+      for (let i = 0; i <= 60; i++) {
+        const T = lo + span * (0.0005 + 0.999 * i / 60), e = ev(T);
+        if (e.code !== 0) continue;
+        if (prev && prev.e.r * e.r <= 0) { ta = prev.T; tb = T; ea = prev.e; eb = e; found = true; break; }
+        prev = { T, e };
+      }
+      if (!found) return { ok: false };
+    }
+    const Tm = brent(T => { const e = ev(T); return e.code === 0 ? e.r : (e.code === 1 ? ea.r : eb.r); }, ta, tb, 1e-7);
+    const s = ev(Tm);
+    if (s.code !== 0 || !(s.Qhi > 0)) return { ok: false };
+    return {
+      ok: true, xout: s.x2, Q: s.Qhi, Qlo: s.Qlo, Tm, x1: s.x1, wAmb: s.w2, wInt: s.w1, Tin: s.Tin,
+      stages: [
+        { xin, xout: s.x1, Tin: s.Tin, Tout: Ta, Tv: Tm, w: s.w1, Q: s.Qhi },
+        { xin: s.x1, xout: s.x2, Tin: Ta, Tout: Tm, Tv: Te, w: s.w2, Q: s.Qlo }
+      ]
+    };
+  }
+
   function cycle(fid, o) {
     const f = FLUIDS[fid];
+    const proc = PROCESSES.indexOf(o.process) >= 0 ? o.process : 'single';
+    const P = procInfo(proc);
     const Td = o.Tdes, Tc = o.Tcond, Te = o.Tevap, Ta = o.Tabs, Ts = o.Tstore;
     const margin = o.margin || 0;
     const pc = water.psat(Tc), pe = water.psat(Te);
-    const res = { fluid: fid, ok: false, pc, pe, warnings: [] };
+    const res = { fluid: fid, process: proc, stages: P.stages, cryst: P.cryst, ok: false, pc, pe, warnings: [] };
     // charging limit: equilibrium at desorber temperature and condenser pressure
     let xdes = xeq(f, Td, pc);
     res.xdesRaw = xdes;
     if (!isFinite(xdes)) xdes = f.xMax;
     if (xdes <= 0) { res.reason = 'nocharge'; return res; }
-    // crystallisation limit in the storage tank
+    // crystallisation limits: storage tank and desorber
     const xcry = xLiquidMax(f, Ts - margin);
-    res.xcry = xcry;
-    // crystallisation inside the desorber
     const xcryDes = xLiquidMax(f, Td - margin);
-    let xconc = Math.min(xdes, xcry, xcryDes);
-    res.limit = xconc === xdes ? 'charge' : (xconc === xcry ? 'storage' : 'desorber');
-    res.xconc = xconc;
-    // discharging limit: equilibrium at absorber temperature and evaporator pressure
-    const xdil = xeq(f, Ta, pe);
-    res.xdil = xdil;
-    if (!(xdil > 0) || !isFinite(xdil) || xdil >= xconc) { res.reason = 'nolift'; return res; }
-    // stability of stored dilute solution and of discharge states
-    if (f.Tsol(xdil) > Ts - margin + 0.05) res.warnings.push('dilute-crystallises');
-    let worst = -Infinity;
-    for (let i = 0; i <= 40; i++) { const x = xdil + (xconc - xdil) * i / 40; worst = Math.max(worst, f.Tsol(x)); }
-    if (worst > Ta + 0.05) res.warnings.push('absorber-crystallises');
+    res.xcry = xcry; res.xcryDes = xcryDes;
+    // xconc: overall (salt + crystals) concentration of the charged store;
+    // xliq:  concentration of the liquid that is fed to the absorber
+    let xconc, xliq;
+    if (P.cryst) {
+      xconc = Math.min(xdes, xcryDes);
+      xliq = Math.min(xconc, xcry);
+      res.limit = xconc === xdes ? 'charge' : 'desorber';
+    } else {
+      xconc = Math.min(xdes, xcry, xcryDes);
+      xliq = xconc;
+      res.limit = xconc === xdes ? 'charge' : (xconc === xcry ? 'storage' : 'desorber');
+    }
+    res.xconc = xconc; res.xliq = xliq;
+    // solid phase in the charged store, per kg salt (anhydrous crystals)
+    const mTot = 1 / xconc, mWater = mTot - 1;
+    const saltLiq = Math.min(1, mWater * xliq / (1 - xliq));
+    const mCryst = 1 - saltLiq;
+    res.mCryst = mCryst; res.solidFrac = mCryst / mTot;
 
-    const wc = (1 - xconc) / xconc, wd = (1 - xdil) / xdil, dm = wd - wc; // kg water / kg salt
+    // discharge
+    const D = P.stages === 2 ? dischargeDouble(f, xliq, Ta, Te, Ts) : dischargeSingle(f, xliq, Ta, Te, Ts);
+    res.discharge = D;
+    if (!D.ok) {
+      res.xdil = D.xout;
+      res.reason = 'nolift';
+      return res;
+    }
+    const xdil = D.xout;
+    res.xdil = xdil;
+    if (P.stages === 2) { res.Tm = D.Tm; res.xmid = D.x1; }
+    // passes through the absorber train: each pass takes liquid from x_liq to x_dil;
+    // the dilute solution returns through the crystal tank until all salt is dissolved
+    const N = xconc > xliq + 1e-12 ? (1 / xdil - 1 / xconc) / (1 / xdil - 1 / xliq) : 1;
+    res.passes = N;
+    // stability checks
+    if (f.Tsol(xdil) > Ts - margin + 0.05) res.warnings.push('dilute-crystallises');
+    const solMax = (xa, xb) => { let w = -Infinity; for (let i = 0; i <= 40; i++) w = Math.max(w, f.Tsol(xa + (xb - xa) * i / 40)); return w; };
+    const absCryst = P.stages === 2
+      ? solMax(D.x1, xliq) > Math.min(Ta, D.Tin) + 0.05 || solMax(xdil, D.x1) > D.Tm + 0.05
+      : solMax(xdil, xliq) > Ta + 0.05;
+    if (absCryst) res.warnings.push('absorber-crystallises');
+
+    const dm = 1 / xdil - 1 / xconc;  // kg water cycled per kg salt
+    const wc = (1 - xconc) / xconc, wd = (1 - xdil) / xdil;
     const hVe = water.hV(Te), hVd = water.hVap(Td, pc);
-    const qAbs = x => (hVe - hbarW(f, x, Ta)) / (x * x);
+    let Qabs = N * D.Q;
     const qDes = x => (hVd - hbarW(f, x, Td)) / (x * x);
-    let Qabs = integrateN(qAbs, xdil, xconc, o.parts || 2);
     let Qdes = integrateN(qDes, xdil, xconc, o.parts || 2);
-    const Qevap = dm * (hVe - water.hL(Ts));
+    const Qevap = N * D.wAmb * (hVe - water.hL(Ts));       // ambient heat (lowest evaporator only)
     const Qcond = dm * (hVd - water.hL(Tc));
     // optional sensible heat with a solution heat exchanger of effectiveness eps
     let Sch = 0, Sdis = 0;
     if (o.sensible) {
       const eps = o.eps || 0;
       if (Td > Ts) Sch = (1 / xdil) * integrate(T => f.cp(xdil, T), Ts, Td);
-      if (Ta > Ts) Sdis = (1 / xconc) * integrate(T => f.cp(xconc, T), Ts, Ta);
+      if (D.Tin > Ts) Sdis = N * (1 / xliq) * integrate(T => f.cp(xliq, T), Ts, D.Tin);
       Qdes += (1 - eps) * Sch;
       Qabs -= (1 - eps) * Sdis;
     }
     res.Sch = Sch; res.Sdis = Sdis;
     // volumes at storage temperature, per kg salt
     const Vdil = (1 / xdil) / f.rho(xdil, Ts);
-    const Vconc = (1 / xconc) / f.rho(xconc, Ts);
+    const Vconc = (mTot - mCryst) / f.rho(xliq, Ts) + mCryst / RHO_SOLID[fid];
     const Vw = dm / water.rhoL(Ts);
     const kWh = Qabs / 3600; // per kg salt
     Object.assign(res, {
@@ -1644,7 +1855,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       },
       eta: Qabs / Qdes,
       copCool: Qevap / Qdes,
-      TabsStart: Teq(f, xconc, pe),
+      TabsStart: Teq(f, xliq, P.stages === 2 ? water.psat(D.Tm) : pe),
       TdesStart: Teq(f, xdil, pc),
       lift: Ta - Te
     });
@@ -1659,8 +1870,8 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   }
 
   return {
-    water, FLUIDS, ORDER, NaOH, LiBr, LiCl, CaCl2,
-    Teq, xeq, xLiquidMax, solidIntervals, hbarW, dhAbs, dhAbsCC, state, cycle, waterTank,
+    water, FLUIDS, ORDER, NaOH, LiBr, LiCl, CaCl2, PROCESSES, procInfo,
+    Teq, xeq, xLiquidMax, solidIntervals, hbarW, dhAbs, dhAbsCC, state, cycle, waterTank, absorber, dischargeSingle, dischargeDouble,
     util: { brent, integrate, integrateN, interp, molality, moleFraction }
   };
 });
@@ -1740,7 +1951,26 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       cycleNote: 'Idealisierter geschlossener Absorptionsspeicher: Gleichgewicht am Ende jedes Prozessschritts, isotherme Absorption und Desorption, keine Wärme- und Stoffübertragungsgrenzen. Die geladene Lösung darf bei Speichertemperatur nicht kristallisieren. Das Wärmeverhältnis kann über 1 liegen, weil beim Entladen Umweltwärme am Verdampfer aufgenommen wird. Preise sind grobe Großhandels-Richtwerte – mit eigenem Angebot überschreiben.',
       footL: '<b>Absorption Atlas</b> – interaktive Oberfläche zu <a href="https://pypi.org/project/absorptionlib/" target="_blank" rel="noopener">absorptionlib</a>',
       footR: 'Stoffdaten &amp; Bibliothek: <b>Dorian Höffner</b>, TU Berlin · Fachgebiet Wärmeübertragung und -wandlung',
-      selected: 'gewählt', paperTag: 'Publikation', paperRefHead: 'Hintergrund und Diskussion der Ergebnisse:', legal: 'Impressum & Datenschutz', noSolData: 'Löslichkeitsdaten (Boryta 1970) erst ab x = 45,2 %', paperRef: 'Hintergrund und Diskussion der Ergebnisse:', byline: 'Dorian Höffner · TU Berlin', saved: 'Gespeichert', saveFail: 'Speichern nicht möglich', saveBusy: 'Ein Speicherdialog ist bereits offen', saveAs: 'Speichern als', saveCsv: 'Als CSV speichern', validTo: 'gültig bis', notInLib: 'keine Korrelation hinterlegt', symCond: 'kond', symEvap: 'verd', symStore: 'sp'
+      selected: 'gewählt', paperTag: 'Publikation', paperRefHead: 'Hintergrund und Diskussion der Ergebnisse:', legal: 'Impressum & Datenschutz', noSolData: 'Löslichkeitsdaten (Boryta 1970) erst ab x = 45,2 %', paperRef: 'Hintergrund und Diskussion der Ergebnisse:', byline: 'Dorian Höffner · TU Berlin', saved: 'Gespeichert', saveFail: 'Speichern nicht möglich', saveBusy: 'Ein Speicherdialog ist bereits offen', saveAs: 'Speichern als', saveCsv: 'Als CSV speichern', validTo: 'gültig bis', notInLib: 'keine Korrelation hinterlegt', symCond: 'kond', symEvap: 'verd', symStore: 'sp',
+      grpProc: 'Prozess', grpProcSub: 'Abb. 3–6 in [1]', fStages: 'Absorberstufen', st1: 'einstufig', st2: 'zweistufig', fCryst: 'Kristalle im Speicher', crOff: 'nein', crOn: 'ja',
+      p_single: 'Einstufig', p_singleCryst: 'Einstufig mit Kristallisation', p_double: 'Zweistufig', p_doubleCryst: 'Zweistufig mit Kristallisation',
+      ps_single: '1-stufig', ps_singleCryst: '1-stufig + Krist.', ps_double: '2-stufig', ps_doubleCryst: '2-stufig + Krist.',
+      pd_single: 'Ein Absorber; die konzentrierte Lösung bleibt bei Speichertemperatur flüssig. Begrenzt durch die Löslichkeit im Tank.',
+      pd_singleCryst: 'Im Konzentrat-Tank fallen Salzkristalle aus („dreiphasig“). Die verdünnte Lösung läuft durch den Tank zurück und löst sie wieder – mehr Salz je m³, aber viele Umläufe bei großem Hub.',
+      pd_double: 'Zwei Absorber in Reihe: Absorber 1 bei der Zwischentemperatur T<sub>m</sub> beheizt Verdampfer 2, der den heizungsseitigen Absorber 2 versorgt. Höherer Hub, etwa halbe Energiedichte.',
+      pd_doubleCryst: 'Zweistufig wie oben, zusätzlich mit Kristallen im Konzentrat-Tank; die voll verdünnte Lösung wird durch den Kristalltank zurückgeführt.',
+      grpStoreSubCryst: 'Kristalle im Konzentrat-Tank zulässig',
+      mConcCryst: 'Konzentration gesamt (flüssig) → entladen', mSolid: 'Kristallanteil im geladenen Tank', mPasses: 'Umläufe durch den Kristalltank', mTm: 'Zwischentemperatur T_m', mXmid: 'x nach Absorber 2', mNoCryst: 'Keine Kristalle: Die Ladung überschreitet die Löslichkeit im Tank nicht.',
+      tXl: 'x flüssig (Absorbereintritt)', tSolid: 'Kristallanteil (geladen)', tPasses: 'Umläufe durch den Kristalltank', tTm: 'Zwischentemperatur T_m', tXm: 'x nach Absorber 2', tProc: 'Prozess',
+      cmpLbl: 'Vergleich', cmpProc: 'Prozesse', cmpPairs: 'Stoffpaare', physLim: 'physikalische Grenze', pubCurves: 'Publizierte Kurven (Abb. 7)', pubApply: 'Bedingungen aus Abb. 7 setzen', pubLeg: 'publiziert (Abb. 7)', computing: 'rechnet …',
+      pubNote: 'Publizierte Kurven: Originalskripte zu [1] bei T_des = 100 °C, T_kond = 20 °C, T_verd = 10 °C, T_sp = 20 °C.',
+      schemTitle: 'Prozessschaltung', sEvap: 'Verdampfer', sAbs: 'Absorber', sWater: 'Wasser', sConc: 'konz.', sDil: 'verd.', sHeat: 'Heizung', sSource: 'Quelle', sCryst: '+ Kristalle',
+      schemNoteSingle: 'Ideale Komponenten: Absorberaustritt im Gleichgewicht mit dem eintretenden Wärmeträger, Lösung rekuperativ vorgewärmt.',
+      schemNoteDouble: 'Absorber 1 und Verdampfer 2 arbeiten bei derselben Temperatur T_m; sie folgt aus der Energiebilanz Q_A1 = Q_V2.',
+      schemNoteCryst: 'Die verdünnte Lösung wird so oft durch den Kristalltank geführt, bis alle Kristalle gelöst sind.',
+      pr5: 'Abb. 7 · Paper',
+      evap1: 'Verdampfer 1', evap2: 'Verdampfer 2', crystPath: 'Abkühlen mit Kristallisation', recirc: 'Rückführung',
+      cycleNoteProc: 'Mehrstufige und kristallisierende Varianten nach Abschnitt 2.2 in [1]; Bilanzen je kg Salz mit absoluten Enthalpien, die Kristalle werden wie in [1] als wasserfreies Salz bilanziert.'
     },
     en: {
       tagline: 'Properties and storage potential of the working pairs <em>NaOH</em>, <em>LiBr</em>, <em>LiCl</em> and <em>CaCl₂</em> with water – interactive, computed in your browser.',
@@ -1801,7 +2031,26 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       cycleNote: 'Idealised closed absorption store: equilibrium at the end of each step, isothermal absorption and desorption, no heat or mass transfer limits. The charged solution must not crystallise at storage temperature. The heat ratio can exceed 1 because discharging takes up ambient heat in the evaporator. Prices are rough bulk indications – overwrite them with your own quote.',
       footL: '<b>Absorption Atlas</b> – interactive front end to <a href="https://pypi.org/project/absorptionlib/" target="_blank" rel="noopener">absorptionlib</a>',
       footR: 'Property data &amp; library: <b>Dorian Höffner</b>, TU Berlin · Chair of Heat Transfer and Conversion',
-      selected: 'selected', paperTag: 'Publication', paperRefHead: 'Background and discussion of the results:', legal: 'Legal notice & privacy', noSolData: 'solubility data (Boryta 1970) start at x = 45.2 %', paperRef: 'Background and discussion of the results:', byline: 'Dorian Höffner · TU Berlin', saved: 'Saved', saveFail: 'Saving is not possible here', saveBusy: 'A save dialog is already open', saveAs: 'Save as', saveCsv: 'Save as CSV', validTo: 'valid up to', notInLib: 'no correlation available', symCond: 'cond', symEvap: 'evap', symStore: 'store'
+      selected: 'selected', paperTag: 'Publication', paperRefHead: 'Background and discussion of the results:', legal: 'Legal notice & privacy', noSolData: 'solubility data (Boryta 1970) start at x = 45.2 %', paperRef: 'Background and discussion of the results:', byline: 'Dorian Höffner · TU Berlin', saved: 'Saved', saveFail: 'Saving is not possible here', saveBusy: 'A save dialog is already open', saveAs: 'Save as', saveCsv: 'Save as CSV', validTo: 'valid up to', notInLib: 'no correlation available', symCond: 'cond', symEvap: 'evap', symStore: 'store',
+      grpProc: 'Process', grpProcSub: 'Figs. 3–6 in [1]', fStages: 'Absorber stages', st1: 'single', st2: 'double', fCryst: 'Crystals in the store', crOff: 'no', crOn: 'yes',
+      p_single: 'Single-stage', p_singleCryst: 'Single-stage with crystallisation', p_double: 'Double-stage', p_doubleCryst: 'Double-stage with crystallisation',
+      ps_single: 'single', ps_singleCryst: 'single + cryst.', ps_double: 'double', ps_doubleCryst: 'double + cryst.',
+      pd_single: 'One absorber; the concentrated solution stays liquid at storage temperature. Limited by the solubility in the tank.',
+      pd_singleCryst: 'Salt crystals settle in the concentrate tank (“three-phase”). Dilute solution is recirculated through the tank and redissolves them – more salt per m³, but many passes at large lifts.',
+      pd_double: 'Two absorbers in series: absorber 1 at the intermediate temperature T<sub>m</sub> heats evaporator 2, which feeds absorber 2 on the heating side. Higher lift, roughly half the energy density.',
+      pd_doubleCryst: 'Double-stage as above, plus crystals in the concentrate tank; the fully diluted solution is recirculated through the crystal tank.',
+      grpStoreSubCryst: 'crystals allowed in the concentrate tank',
+      mConcCryst: 'Concentration total (liquid) → discharged', mSolid: 'Crystal fraction in the charged tank', mPasses: 'Passes through the crystal tank', mTm: 'Intermediate temperature T_m', mXmid: 'x after absorber 2', mNoCryst: 'No crystals: charging does not exceed the solubility in the tank.',
+      tXl: 'x liquid (absorber inlet)', tSolid: 'Crystal fraction (charged)', tPasses: 'Passes through the crystal tank', tTm: 'Intermediate temperature T_m', tXm: 'x after absorber 2', tProc: 'Process',
+      cmpLbl: 'Compare', cmpProc: 'Processes', cmpPairs: 'Working pairs', physLim: 'physical limit', pubCurves: 'Published curves (Fig. 7)', pubApply: 'Use the conditions of Fig. 7', pubLeg: 'published (Fig. 7)', computing: 'computing …',
+      pubNote: 'Published curves: original scripts of [1] at T_des = 100 °C, T_cond = 20 °C, T_evap = 10 °C, T_store = 20 °C.',
+      schemTitle: 'Process arrangement', sEvap: 'Evaporator', sAbs: 'Absorber', sWater: 'Water', sConc: 'conc.', sDil: 'dilute', sHeat: 'Heating', sSource: 'Source', sCryst: '+ crystals',
+      schemNoteSingle: 'Ideal components: absorber outlet in equilibrium with the entering heat-transfer fluid, solution preheated recuperatively.',
+      schemNoteDouble: 'Absorber 1 and evaporator 2 share the temperature T_m, which follows from the energy balance Q_A1 = Q_E2.',
+      schemNoteCryst: 'Dilute solution passes through the crystal tank until all crystals have dissolved.',
+      pr5: 'Fig. 7 · paper',
+      evap1: 'Evaporator 1', evap2: 'Evaporator 2', crystPath: 'cooling with crystallisation', recirc: 'recirculation',
+      cycleNoteProc: 'Multi-stage and crystallising variants follow Section 2.2 of [1]; balances per kg salt with absolute enthalpies, crystals counted as anhydrous salt as in [1].'
     }
   };
   const t = k => (T[S.lang] && T[S.lang][k] !== undefined) ? T[S.lang][k] : (T.en[k] !== undefined ? T.en[k] : k);
@@ -1822,6 +2071,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     calc: { mode: 'Tx', T: 60, x: 0.5, p: 2400, phi: 30 },
     gen: { props: ['p', 'aw', 'rho', 'cp', 'dhabs'], x0: 30, x1: 50, dx: 5, T0: 20, T1: 80, dT: 20, fmt: 'int' },
     st: { Tdes: 90, Tcond: 25, Tevap: 10, Tabs: 30, Tstore: 20, margin: 0, sensible: false, eps: 0.7, basis: 'm3Dil',
+      process: 'single', cmp: 'proc', pub: true,
       prices: { NaOH: 0.4, LiBr: 12, LiCl: 9, CaCl2: 0.25 } }
   };
   (function initLang() {
@@ -1840,6 +2090,8 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       if (s.gen) Object.assign(S.gen, s.gen);
       if (s.st) { const pr = Object.assign({}, S.st.prices, s.st.prices || {}); Object.assign(S.st, s.st); S.st.prices = pr; }
       if (!F[S.fluid]) S.fluid = 'NaOH';
+      if (AA.PROCESSES.indexOf(S.st.process) < 0) S.st.process = 'single';
+      if (S.st.cmp !== 'pairs') S.st.cmp = 'proc';
       if (S.chart === 'duhring') S.chart = 'pT';
     } catch (e) { /* storage unavailable */ }
   }
@@ -2271,29 +2523,97 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     return { ctx, X, Y };
   }
 
+  // storage cycle in the p–T chart; state numbers follow Figs. 3–6 of the paper
   function drawCycle(ctx, X, Y, c, fid) {
-    const f = F[fid], g = s('g', null, ctx.data);
-    const pc = c.pc, pe = c.pe;
+    const f = F[fid], g = s('g', null, ctx.data), col = color(fid);
+    const Ts = S.st.Tstore, Ta = S.st.Tabs;
+    const pc = c.pc, pe = c.pe, two = c.stages === 2;
+    const pm = two ? W.psat(c.Tm) : pe;                 // pressure of the heating-side absorber
     const TdS = c.TdesStart, TdE = AA.Teq(f, c.xconc, pc);
-    const TaS = c.TabsStart, TaE = AA.Teq(f, c.xdil, pe);
-    const iso = (x, T0, T1) => { const pts = []; const n = 24; for (let i = 0; i <= n; i++) { const T = T0 + (T1 - T0) * i / n; pts.push([X(T), Y(f.p(x, T))]); } return pts; };
-    const poly = [].concat([[X(TdS), Y(pc)], [X(TdE), Y(pc)]], iso(c.xconc, TdE, TaS), [[X(TaE), Y(pe)]], iso(c.xdil, TaE, TdS));
-    s('path', { class: 'cycle-fill', d: pathOf(poly) + 'Z', style: `fill:${color(fid)}` }, g);
-    s('path', { class: 'cycle', d: pathOf(iso(c.xconc, TdE, TaS)), style: `stroke:${color(fid)};opacity:.55;stroke-width:1.4` }, g);
-    s('path', { class: 'cycle', d: pathOf(iso(c.xdil, TaE, TdS)), style: `stroke:${color(fid)};opacity:.55;stroke-width:1.4` }, g);
-    s('path', { class: 'cycle', d: pathOf([[X(TdS), Y(pc)], [X(TdE), Y(pc)]]), style: `stroke:${color(fid)}` }, g);
-    s('path', { class: 'cycle', d: pathOf([[X(TaS), Y(pe)], [X(TaE), Y(pe)]]), style: `stroke:${color(fid)}` }, g);
-    // vapour transfer to water line
+    const P = (T, p) => [X(T), Y(p)];
+    const iso = (x, T0, T1, n) => { const pts = []; n = n || 24; for (let i = 0; i <= n; i++) { const T = T0 + (T1 - T0) * i / n; pts.push(P(T, f.p(x, T))); } return pts; };
+    const hasCryst = c.cryst && c.xconc > c.xliq + 1e-9;
+    const T3 = AA.Teq(f, c.xliq, pm);
+    const Tin = Math.max(two ? c.Tm : Ta, Ts);
+    const TEnd = two ? c.Tm : Ta;
+    const T4 = two ? AA.Teq(f, c.xmid, pe) : NaN;
+    // charging and cooling down
+    let cool;
+    if (hasCryst) {
+      const Ton = Math.min(TdE, f.Tsol(c.xconc));
+      cool = iso(c.xconc, TdE, Ton, 12);
+      for (let i = 1; i <= 36; i++) { const x = c.xconc + (c.xliq - c.xconc) * i / 36; const T = f.Tsol(x); if (isFinite(T)) cool.push(P(T, f.p(x, T))); }
+    }
+    const isoConc = hasCryst ? iso(c.xliq, Ts, T3) : iso(c.xconc, TdE, T3);
+    const absUp = [P(T3, pm), P(Ta, pm)];
+    const lower = two ? [].concat(iso(c.xmid, Ta, T4, 16), [P(c.Tm, pe)]) : [];
+    const isoDil = iso(c.xdil, TEnd, TdS);
+    const poly = [].concat([P(TdS, pc), P(TdE, pc)], hasCryst ? cool : [], isoConc, absUp, lower, isoDil);
+    s('path', { class: 'cycle-fill', d: pathOf(poly) + 'Z', style: `fill:${col}` }, g);
+    const thin = `stroke:${col};opacity:.55;stroke-width:1.4`;
+    // isosteres (state changes at constant concentration)
+    if (hasCryst) {
+      s('path', { class: 'cycle', d: pathOf(cool), style: `stroke:${col};stroke-width:1.8;stroke-dasharray:5,3` }, g);
+      s('path', { class: 'cycle', d: pathOf(isoConc), style: thin }, g);
+    } else {
+      s('path', { class: 'cycle', d: pathOf(iso(c.xconc, TdE, Math.min(Ts, T3))), style: thin }, g);
+    }
+    s('path', { class: 'cycle', d: pathOf(iso(c.xdil, Math.min(Ts, TEnd), TdS)), style: thin }, g);
+    if (two) s('path', { class: 'cycle', d: pathOf(iso(c.xmid, Ta, T4, 16)), style: thin + ';stroke-dasharray:2,3' }, g);
+    // desorption and absorption
+    s('path', { class: 'cycle', d: pathOf([P(TdS, pc), P(TdE, pc)]), style: `stroke:${col}` }, g);
+    s('path', { class: 'cycle', d: pathOf(absUp), style: `stroke:${col}` }, g);
+    if (two) s('path', { class: 'cycle', d: pathOf([P(T4, pe), P(c.Tm, pe)]), style: `stroke:${col}` }, g);
+    // recirculation of the dilute solution through the crystal tank (5 → 1)
+    if (hasCryst) s('path', { class: 'vap', d: pathOf([P(Ts, f.p(c.xdil, Ts)), P(Ts, f.p(c.xliq, Ts))]), style: 'stroke-width:1.6;stroke-dasharray:1.5,3' }, g);
+    // vapour transfer to the water line
     const Tc = W.Tsat(pc), Te = W.Tsat(pe);
-    s('path', { class: 'vap', d: pathOf([[X(Tc), Y(pc)], [X(TdS), Y(pc)]]) }, g);
-    s('path', { class: 'vap', d: pathOf([[X(Te), Y(pe)], [X(TaE), Y(pe)]]) }, g);
-    const dot = (T, p, id) => s('circle', { class: 'marker', cx: X(T), cy: Y(p), r: 4.5, style: `fill:${id ? color(id) : 'var(--ink)'}` }, ctx.over);
-    dot(Tc, pc); dot(Te, pe); dot(TdE, pc, fid); dot(TaE, pe, fid); dot(TdS, pc, fid); dot(TaS, pe, fid);
-    const lab = (x, y, txt, anchor, strong) => s('text', { class: 'note' + (strong ? ' strong' : ''), x, y, 'text-anchor': anchor || 'start', text: txt }, ctx.over);
-    lab(X(Tc) - 8, Y(pc) - 8, t('condLbl'), 'end');
-    lab(X(Te) - 8, Y(pe) + 16, t('evapLbl'), 'end');
-    lab((X(TdS) + X(TdE)) / 2, Y(pc) - 9, `${t('chargeLbl')} ${nf(TdS, 0)} → ${nf(TdE, 0)} °C`, 'middle', true);
-    lab((X(TaS) + X(TaE)) / 2, Y(pe) + 18, `${t('dischargeLbl')} ${nf(TaS, 0)} → ${nf(TaE, 0)} °C`, 'middle', true);
+    s('path', { class: 'vap', d: pathOf([P(Tc, pc), P(TdS, pc)]) }, g);
+    s('path', { class: 'vap', d: pathOf([P(Te, pe), P(two ? c.Tm : Ta, pe)]) }, g);
+    if (two) s('path', { class: 'vap', d: pathOf([P(c.Tm, pm), P(Ta, pm)]) }, g);
+    const dot = (T, p, id, r) => s('circle', { class: 'marker', cx: X(T), cy: Y(p), r: r || 4.5, style: `fill:${id ? color(id) : 'var(--ink)'}` }, ctx.over);
+    dot(Tc, pc); dot(Te, pe); if (two) dot(c.Tm, pm);
+    dot(TdS, pc, fid, 3.5); dot(TdE, pc, fid, 3.5);
+    // labels: greedy placement with candidate offsets so nothing overlaps
+    const L = [], obst = [];
+    const q = (x, y, text, prio, cands, strong) => L.push({ x, y, text, prio, cands, strong });
+    const st = (T, p, n, open) => {
+      if (!isFinite(T) || !isFinite(p)) return;
+      const cx = X(T), cy = Y(p);
+      s('circle', { cx, cy, r: 4, style: `fill:${open ? 'var(--surface)' : col};stroke:${open ? col : 'var(--surface)'};stroke-width:${open ? 1.6 : 2}` }, ctx.over);
+      obst.push([cx - 5, cy - 5, cx + 5, cy + 5]);
+      q(cx, cy, n, 6, [[-7, -6, 'end'], [7, -6, 'start'], [-7, 14, 'end'], [7, 14, 'start'], [0, -9, 'middle'], [0, 18, 'middle']], true);
+    };
+    st(Ts, f.p(c.xliq, Ts), '1');
+    if (Tin > Ts + 0.3 && Tin < T3 - 0.3) st(Tin, f.p(c.xliq, Tin), '2');
+    st(T3, pm, '3', true);
+    st(Ta, pm, two ? "3'" : '4');
+    if (two) { st(T4, pe, '4', true); st(c.Tm, pe, "4'"); }
+    st(Ts, f.p(c.xdil, Ts), '5');
+    for (const [T, p] of [[Tc, pc], [Te, pe]].concat(two ? [[c.Tm, pm]] : [])) obst.push([X(T) - 5, Y(p) - 5, X(T) + 5, Y(p) + 5]);
+    const side = [[-8, -8, 'end'], [-8, 16, 'end'], [8, -8, 'start'], [8, 16, 'start'], [-8, -21, 'end'], [-8, 29, 'end'], [8, -21, 'start'], [-8, -34, 'end']];
+    q(X(Tc), Y(pc), t('condLbl'), 3, side);
+    q(X(Te), Y(pe), two ? t('evap1') : t('evapLbl'), 3, [[-8, 16, 'end'], [-8, -8, 'end'], [8, -8, 'start'], [8, 16, 'start'], [-8, 29, 'end'], [8, 29, 'start'], [-8, -21, 'end']]);
+    if (two) q(X(c.Tm), Y(pm), t('evap2'), 3, side);
+    const mid = (Ta_, Tb_) => (X(Ta_) + X(Tb_)) / 2;
+    q(mid(TdS, TdE), Y(pc), `${t('chargeLbl')} ${nf(TdS, 0)} → ${nf(TdE, 0)} °C`, 4, [[0, -9, 'middle'], [0, 18, 'middle'], [0, -22, 'middle']], true);
+    if (two) {
+      q(mid(T3, Ta), Y(pm), `${t('sAbs')} 2 · ${nf(T3, 0)} → ${nf(Ta, 0)} °C`, 4, [[0, 17, 'middle'], [0, -9, 'middle'], [0, 30, 'middle']], true);
+      q(mid(T4, c.Tm), Y(pe), `${t('sAbs')} 1 · ${nf(T4, 0)} → ${nf(c.Tm, 0)} °C`, 4, [[0, 17, 'middle'], [0, 30, 'middle'], [40, 17, 'start'], [40, 30, 'start'], [0, -9, 'middle']], true);
+    } else {
+      q(mid(T3, Ta), Y(pe), `${t('dischargeLbl')} ${nf(T3, 0)} → ${nf(Ta, 0)} °C`, 4, [[0, 18, 'middle'], [0, -9, 'middle']], true);
+    }
+    const placed = obst.slice();
+    const boxOf = (x, y, w, a) => { const x0 = a === 'end' ? x - w : a === 'middle' ? x - w / 2 : x; return [x0 - 2, y - 11, x0 + w + 2, y + 3]; };
+    const hits = bx => placed.some(o => !(bx[2] < o[0] || bx[0] > o[2] || bx[3] < o[1] || bx[1] > o[3]));
+    L.sort((a, b2) => b2.prio - a.prio).forEach(l => {
+      const w = l.text.length * (l.strong ? 6.7 : 6.3);
+      let pick = null;
+      for (const [dx, dy, a] of l.cands) { const bx = boxOf(l.x + dx, l.y + dy, w, a); if (!hits(bx) && bx[0] > 2 && bx[2] < ctx.iw - 2 && bx[1] > 0) { pick = [dx, dy, a, bx]; break; } }
+      if (!pick) { if (l.prio < 6) return; const [dx, dy, a] = l.cands[0]; pick = [dx, dy, a, boxOf(l.x + dx, l.y + dy, w, a)]; }  // only state numbers are never dropped
+      placed.push(pick[3]);
+      s('text', { class: 'note' + (l.strong ? ' strong' : ''), x: l.x + pick[0], y: l.y + pick[1], 'text-anchor': pick[2], text: l.text }, ctx.over);
+    });
   }
 
   // shared hover / pin machinery for state charts
@@ -2869,22 +3189,52 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     { k: 'pr1', v: { Tdes: 90, Tcond: 25, Tevap: 10, Tabs: 20, Tstore: 20 } },
     { k: 'pr2', v: { Tdes: 90, Tcond: 25, Tevap: 10, Tabs: 30, Tstore: 20 } },
     { k: 'pr3', v: { Tdes: 110, Tcond: 25, Tevap: 10, Tabs: 45, Tstore: 20 } },
-    { k: 'pr4', v: { Tdes: 90, Tcond: 30, Tevap: 10, Tabs: 32, Tstore: 25 } }
+    { k: 'pr4', v: { Tdes: 90, Tcond: 30, Tevap: 10, Tabs: 32, Tstore: 25 } },
+    { k: 'pr5', v: { Tdes: 100, Tcond: 20, Tevap: 10, Tabs: 30, Tstore: 20, margin: 0 } }
   ];
+  // boundary conditions of Fig. 7 in Höffner, Ziegler & Elbel (2026) and the curves of that
+  // figure, regenerated from the original analysis scripts (ESD per m³ dilute solution vs lift)
+  const PAPER_BC = { Tdes: 100, Tcond: 20, Tevap: 10, Tstore: 20, margin: 0 };
+  const PUBLISHED = {"NaOH":{"singleCryst":[[0.0,687.0],[1.41,679.1],[2.83,668.0],[4.24,656.5],[5.66,645.4],[7.07,634.0],[8.48,622.5],[9.9,611.4],[11.31,600.0],[12.72,589.7],[14.14,578.7],[15.55,567.8],[16.97,556.2],[18.38,545.7],[19.79,533.8],[21.21,522.3],[22.62,511.4],[24.03,499.1],[25.45,487.4],[26.86,475.3],[28.28,462.8],[29.69,450.0],[31.1,436.9],[32.52,423.5],[33.93,409.7],[35.34,395.6],[36.76,381.3],[38.17,366.6],[39.59,350.3],[41.0,333.6]],"single":[[0.0,686.6],[1.41,633.8],[2.83,595.5],[4.24,563.8],[5.66,537.0],[7.07,512.0],[8.48,488.6],[9.9,467.2],[11.31,444.7],[12.72,425.0],[14.14,404.4],[15.55,384.4],[16.97,363.6],[18.38,345.3],[19.79,324.7],[21.21,305.2],[22.62,286.9],[24.03,266.3],[25.45,247.0],[26.86,227.3],[28.28,207.2],[29.69,186.7],[31.1,165.7],[32.52,144.4],[33.93,122.7],[35.34,100.7],[36.76,78.3],[38.17,55.6],[39.59,30.3],[41.0,4.7]],"doubleCryst":[[1.0,344.8],[3.03,341.3],[5.07,334.2],[7.1,333.9],[9.14,328.2],[11.17,326.0],[13.21,325.2],[15.24,321.5],[17.28,320.5],[19.31,317.7],[21.34,316.1],[23.38,313.1],[25.41,311.3],[27.45,310.9],[29.48,307.6],[31.52,305.9],[33.55,303.3],[35.59,302.7],[37.62,299.4],[39.66,298.5],[41.69,297.1],[43.72,295.1],[45.76,292.6],[47.79,291.0],[49.83,289.2],[51.86,289.1],[53.9,286.4],[55.93,283.6],[57.97,284.7],[60.0,281.2]],"double":[[1.0,338.1],[3.03,324.4],[5.07,313.9],[7.1,303.0],[9.14,295.1],[11.17,287.5],[13.21,281.3],[15.24,274.9],[17.28,267.2],[19.31,261.5],[21.34,254.7],[23.38,247.2],[25.41,241.4],[27.45,235.8],[29.48,229.1],[31.52,222.5],[33.55,216.3],[35.59,208.2],[37.62,202.7],[39.66,195.2],[41.69,188.5],[43.72,181.2],[45.76,174.9],[47.79,166.6],[49.83,159.5],[51.86,152.4],[53.9,144.3],[55.93,138.1],[57.97,129.4],[60.0,122.4]]},"LiBr":{"singleCryst":[[0.0,685.2],[2.07,579.7],[4.14,513.8],[6.21,466.3],[8.28,431.1],[10.34,403.4],[12.41,379.7],[14.48,359.7],[16.55,340.9],[18.62,323.5],[20.69,306.5],[22.76,290.0],[24.83,274.2],[26.9,257.9],[28.97,242.3],[31.03,226.2],[33.1,211.1],[35.17,194.0],[37.24,177.9]],"single":[[0.0,685.0],[2.07,544.2],[4.14,454.9],[6.21,390.8],[8.28,343.3],[10.34,306.1],[12.41,274.2],[14.48,247.4],[16.55,222.2],[18.62,199.1],[20.69,176.5],[22.76,154.8],[24.83,134.0],[26.9,112.5],[28.97,92.2],[31.03,71.2],[33.1,51.6],[35.17,29.3],[37.24,8.5]],"doubleCryst":[[1.0,334.9],[3.03,314.3],[5.07,298.2],[7.1,286.2],[9.14,273.8],[11.17,263.5],[13.21,255.3],[15.24,247.5],[17.28,240.3],[19.31,234.4],[21.34,228.0],[23.38,222.4],[25.41,217.0],[27.45,213.0],[29.48,207.3],[31.52,204.4],[33.55,198.9],[35.59,195.4],[37.62,190.3],[39.66,189.1],[41.69,184.8],[43.72,182.0],[45.76,177.3],[47.79,176.0],[49.83,172.7],[51.86,169.6],[53.9,168.3],[55.93,167.4],[57.97,162.4],[60.0,162.0]],"double":[[1.0,329.5],[3.03,303.8],[5.07,282.8],[7.1,262.3],[9.14,246.2],[11.17,232.3],[13.21,220.5],[15.24,209.2],[17.28,197.6],[19.31,188.0],[21.34,179.9],[23.38,171.2],[25.41,163.3],[27.45,155.4],[29.48,148.5],[31.52,140.7],[33.55,134.1],[35.59,126.7],[37.62,120.6],[39.66,113.9],[41.69,108.3],[43.72,101.0],[45.76,96.8],[47.79,90.5],[49.83,84.0],[51.86,78.9],[53.9,71.9],[55.93,66.4],[57.97,60.6],[60.0,54.8]]},"LiCl":{"singleCryst":[[0.0,686.2],[1.02,636.2],[2.03,604.2],[3.05,575.1],[4.07,549.0],[5.08,526.3],[6.1,506.2],[7.12,488.0],[8.14,471.2],[9.15,455.4],[10.17,440.5],[11.19,427.0],[12.2,414.0],[13.22,401.5],[14.24,389.4],[15.25,377.6],[16.27,366.1],[17.29,354.8],[18.31,343.7],[19.32,332.7],[20.34,321.9],[21.36,311.1],[22.37,300.4],[23.39,289.8],[24.41,279.2],[25.42,268.6],[26.44,258.0],[27.46,247.4],[28.47,236.8],[29.49,226.2],[30.51,215.6],[31.53,204.9],[32.54,194.1],[33.56,183.3]],"single":[[0.0,685.9],[1.02,615.7],[2.03,571.1],[3.05,530.7],[4.07,494.6],[5.08,463.4],[6.1,436.0],[7.12,411.2],[8.14,388.5],[9.15,367.4],[10.17,347.5],[11.19,329.3],[12.2,311.9],[13.22,295.2],[14.24,279.0],[15.25,263.3],[16.27,248.0],[17.29,233.0],[18.31,218.3],[19.32,203.8],[20.34,189.5],[21.36,175.3],[22.37,161.2],[23.39,147.2],[24.41,133.3],[25.42,119.4],[26.44,105.5],[27.46,91.6],[28.47,77.7],[29.49,63.8],[30.51,49.8],[31.53,35.7],[32.54,21.6],[33.56,7.4]],"doubleCryst":[[1.0,340.2],[2.0,333.8],[3.0,328.3],[4.0,323.2],[5.0,318.3],[6.0,313.6],[7.0,309.3],[8.0,305.2],[9.0,301.4],[10.0,297.7],[11.0,294.2],[12.0,290.8],[13.0,287.6],[14.0,284.5],[15.0,281.5],[16.0,278.7],[17.0,275.9],[18.0,273.1],[19.0,270.5],[20.0,267.9],[21.0,265.3],[22.0,262.8],[23.0,260.3],[24.0,257.9],[25.0,255.5],[26.0,253.2],[27.0,250.8],[28.0,248.5],[29.0,246.2],[30.0,244.0],[31.0,241.7],[32.0,239.5],[33.0,237.2],[34.0,235.0],[35.0,232.8],[36.0,230.6],[37.0,228.4],[38.0,226.3],[39.0,224.1],[40.0,221.9],[41.0,219.8],[42.0,217.6],[43.0,215.4],[44.0,213.3],[45.0,211.1],[46.0,208.9],[47.0,206.7],[48.0,204.5],[49.0,202.3],[50.0,200.1],[51.0,197.9],[52.0,195.7],[53.0,193.5],[54.0,191.3],[55.0,189.0],[56.0,186.7],[57.0,184.5],[58.0,182.2],[59.0,179.9],[60.0,177.6]],"double":[[1.0,334.3],[2.0,323.8],[3.0,314.7],[4.0,306.1],[5.0,297.9],[6.0,290.2],[7.0,283.0],[8.0,276.1],[9.0,269.6],[10.0,263.4],[11.0,257.4],[12.0,251.7],[13.0,246.1],[14.0,240.8],[15.0,235.7],[16.0,230.7],[17.0,225.8],[18.0,221.0],[19.0,216.4],[20.0,211.8],[21.0,207.4],[22.0,203.0],[23.0,198.6],[24.0,194.4],[25.0,190.2],[26.0,186.0],[27.0,181.9],[28.0,177.8],[29.0,173.7],[30.0,169.7],[31.0,165.7],[32.0,161.8],[33.0,157.8],[34.0,153.9],[35.0,150.0],[36.0,146.1],[37.0,142.3],[38.0,138.4],[39.0,134.6],[40.0,130.7],[41.0,126.9],[42.0,123.1],[43.0,119.2],[44.0,115.4],[45.0,111.6],[46.0,107.8],[47.0,103.9],[48.0,100.1],[49.0,96.3],[50.0,92.4],[51.0,88.5],[52.0,84.7],[53.0,80.8],[54.0,76.9],[55.0,73.0],[56.0,69.0],[57.0,65.1],[58.0,61.1],[59.0,57.1],[60.0,53.1]]},"CaCl2":{"singleCryst":[[1.0,649.8],[2.0,602.7],[3.0,566.4],[4.0,536.0],[5.0,509.9],[6.0,485.7],[7.0,463.9],[8.0,444.7],[9.0,426.0],[10.0,408.0],[11.0,392.0],[12.0,375.6],[13.0,360.0],[14.0,344.0],[15.0,329.0],[16.0,315.0]],"single":[[1.0,593.4],[2.0,509.0],[3.0,444.5],[4.0,390.7],[5.0,344.6],[6.0,301.9],[7.0,263.4],[8.0,229.4],[9.0,196.5],[10.0,164.7],[11.0,136.3],[12.0,107.2],[13.0,79.6],[14.0,51.3],[15.0,24.7]],"doubleCryst":[[2.0,311.7],[3.0,300.0],[4.0,289.6],[5.0,280.5],[6.0,272.3],[7.0,264.9],[8.0,258.0],[9.0,251.5],[10.0,245.4],[11.0,239.6],[12.0,234.1],[13.0,228.8],[14.0,223.7],[15.0,218.8],[16.0,214.1],[17.0,209.5],[18.0,205.1],[19.0,200.8],[20.0,196.5],[21.0,192.4],[22.0,188.4],[23.0,184.4],[24.0,180.5],[25.0,176.7],[26.0,172.9],[27.0,169.2],[28.0,165.5],[29.0,161.8],[30.0,158.2],[31.0,154.6],[32.0,151.0]],"double":[[2.0,285.8],[3.0,265.1],[4.0,246.5],[5.0,230.4],[6.0,216.0],[7.0,202.9],[8.0,190.8],[9.0,179.4],[10.0,168.7],[11.0,158.5],[12.0,148.9],[13.0,139.6],[14.0,130.8],[15.0,122.2],[16.0,114.0],[17.0,106.1],[18.0,98.4],[19.0,90.9],[20.0,83.6],[21.0,76.5],[22.0,69.5],[23.0,62.6],[24.0,55.9],[25.0,49.3],[26.0,42.8],[27.0,36.4],[28.0,30.0],[29.0,23.7],[30.0,17.5],[31.0,11.3],[32.0,5.2]]}};
   const BASES = ['m3Dil', 'm3Single', 'm3Two', 'kgSol', 'kgSalt'];
   const BASIS_LBL = { m3Dil: 'bm3Dil', m3Single: 'bm3Single', m3Two: 'bm3Two', kgSol: 'bkgSol', kgSalt: 'bkgSalt' };
   const basisUnit = b => b.startsWith('m3') ? t('uM3') : t('uKg');
+  const PROC = AA.PROCESSES;
+  const procName = (p, short) => t((short ? 'ps_' : 'p_') + p);
+  // line style per process, as in Fig. 7: diamonds = single-stage, circles = double-stage,
+  // open marker + dashed line = with crystallisation
+  const PSTYLE = {
+    single: { dash: '', mk: 'diamond', open: false },
+    singleCryst: { dash: '7 4', mk: 'diamond', open: true },
+    double: { dash: '', mk: 'circle', open: false },
+    doubleCryst: { dash: '7 4', mk: 'circle', open: true }
+  };
+  function marker(parent, kind, x, y, r, stroke, open, cls) {
+    const st = `stroke:${stroke};stroke-width:1.5;fill:${open ? 'var(--surface)' : stroke}`;
+    if (kind === 'diamond') return s('path', { class: cls, d: `M${x.toFixed(1)},${(y - r * 1.25).toFixed(1)}l${r},${r * 1.25}l${-r},${r * 1.25}l${-r},${-r * 1.25}z`, style: st }, parent);
+    return s('circle', { class: cls, cx: x, cy: y, r, style: st }, parent);
+  }
+  function legendGlyph(dash, kind, open, col) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('width', 26); svg.setAttribute('height', 12); svg.setAttribute('viewBox', '0 0 26 12');
+    if (dash !== null) s('line', { x1: 1, x2: 25, y1: 6, y2: 6, style: `stroke:${col};stroke-width:2;${dash ? 'stroke-dasharray:' + dash.replace(' ', ',') : ''}` }, svg);
+    if (kind) marker(svg, kind, 13, 6, 3.6, col, open);
+    return svg;
+  }
   function waterRef(st) {
     if (st.basis === 'kgSalt') return NaN;
     const v = AA.waterTank(st.Tdes, st.Tabs);
     if (st.basis === 'kgSol') return v / AA.water.rhoL(0.5 * (st.Tdes + st.Tabs));
     return v;
   }
-  function cycles() { const out = {}; for (const id of ORDER) out[id] = AA.cycle(id, cycleOpts()); return out; }
-  function cycleOpts(over) { const st = S.st; return Object.assign({ Tdes: st.Tdes, Tcond: st.Tcond, Tevap: st.Tevap, Tabs: st.Tabs, Tstore: st.Tstore, margin: st.margin, sensible: st.sensible, eps: st.eps, parts: 1 }, over || {}); }
+  function cycleOpts(over) { const st = S.st; return Object.assign({ Tdes: st.Tdes, Tcond: st.Tcond, Tevap: st.Tevap, Tabs: st.Tabs, Tstore: st.Tstore, margin: st.margin, sensible: st.sensible, eps: st.eps, process: st.process, parts: 1 }, over || {}); }
+  function cycles(proc) { const out = {}; for (const id of ORDER) out[id] = AA.cycle(id, cycleOpts(proc ? { process: proc } : null)); return out; }
+  const paperBC = () => Object.keys(PAPER_BC).every(k => Math.abs(S.st[k] - PAPER_BC[k]) < 1e-9) && !S.st.sensible;
+  const limLbl = c => t(c.limit === 'charge' ? 'limCharge' : c.limit === 'storage' ? 'limStorage' : 'limDesorber');
 
   function renderStorageFields() {
     const st = S.st;
+    const P = AA.procInfo(st.process);
     const pr = $('#presets'); pr.innerHTML = '';
     pr.appendChild(h('span', { class: 'eyebrow', style: 'width:100%', text: t('presets') }));
     PRESETS.forEach(p => pr.appendChild(h('button', {
@@ -2900,17 +3250,31 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       kids.forEach(k => g.appendChild(k));
       return g;
     };
+    // process: stages × crystallisation
+    const setProc = (stages, cryst) => { st.process = (stages === 2 ? 'double' : 'single') + (cryst ? 'Cryst' : ''); save(); renderStorageFields(); renderStorage(); };
+    const seg = (label, opts, cur, on) => {
+      const sg = h('div', { class: 'seg small', role: 'group', 'aria-label': label });
+      opts.forEach(([v, lbl]) => sg.appendChild(h('button', { type: 'button', text: lbl, 'aria-pressed': String(v === cur), onclick: () => on(v) })));
+      return sg;
+    };
+    box.appendChild(group(t('grpProc'), t('grpProcSub'), [
+      h('div', { class: 'proc-sel' }, [
+        h('div', { class: 'row' }, [h('span', { text: t('fStages') }), seg(t('fStages'), [[1, t('st1')], [2, t('st2')]], P.stages, v => setProc(v, P.cryst))]),
+        h('div', { class: 'row' }, [h('span', { text: t('fCryst') }), seg(t('fCryst'), [[false, t('crOff')], [true, t('crOn')]], P.cryst, v => setProc(P.stages, v))])
+      ]),
+      h('p', { class: 'proc-desc', html: `<b>${procName(st.process)}.</b> ${t('pd_' + st.process)}` })
+    ]));
     box.appendChild(group(t('grpCharge'), t('grpChargeSub'), [
       numField('stTdes', t('fTdes'), 'T<sub>des</sub>', '°C', st.Tdes, 40, 160, 1, v => { st.Tdes = v; upd(); }, { dp: 1 }),
       numField('stTcond', t('fTcond'), 'T<sub>' + t('symCond') + '</sub>', '°C', st.Tcond, 5, 50, 0.5, v => { st.Tcond = v; upd(); }, { dp: 1 })
     ]));
     const dis = group(t('grpDis'), t('grpDisSub'), [
       numField('stTevap', t('fTevap'), 'T<sub>' + t('symEvap') + '</sub>', '°C', st.Tevap, 0, 35, 0.5, v => { st.Tevap = v; upd(); }, { dp: 1 }),
-      numField('stTabs', t('fTabs'), 'T<sub>abs</sub>', '°C', st.Tabs, 5, 80, 0.5, v => { st.Tabs = v; upd(); }, { dp: 1 })
+      numField('stTabs', t('fTabs'), 'T<sub>abs</sub>', '°C', st.Tabs, 5, 95, 0.5, v => { st.Tabs = v; upd(); }, { dp: 1 })
     ]);
     dis.appendChild(h('div', { class: 'lift-readout', id: 'liftBox' }));
     box.appendChild(dis);
-    box.appendChild(group(t('grpStore'), t('grpStoreSub'), [
+    box.appendChild(group(t('grpStore'), P.cryst ? t('grpStoreSubCryst') : t('grpStoreSub'), [
       numField('stTstore', t('fTstore'), 'T<sub>' + t('symStore') + '</sub>', '°C', st.Tstore, 0, 45, 0.5, v => { st.Tstore = v; upd(); }, { dp: 1 }),
       numField('stMargin', t('fMargin'), 'ΔT<sub>cr</sub>', 'K', st.margin, 0, 10, 0.5, v => { st.margin = v; upd(); }, { dp: 1 })
     ]));
@@ -2937,41 +3301,51 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   function scheduleStorage() { cancelAnimationFrame(stRaf); stRaf = requestAnimationFrame(renderStorage); }
 
   function renderStorage() {
-    const st = S.st;
+    const st = S.st, proc = st.process, P = AA.procInfo(proc);
     const C = cycles();
+    const Cs = proc === 'single' ? C : cycles('single');
     const sel = C[S.fluid];
     const b = st.basis, u = basisUnit(b);
     const dpE = b.startsWith('m3') ? 0 : 3;
     // hero
     const hero = $('#stHero'); hero.innerHTML = '';
     hero.appendChild(h('div', { class: 'eyebrow', html: `<span class="formula">${FORM[S.fluid]}–H<sub>2</sub>O</span> · ${t('heroCap')}` }));
+    hero.appendChild(h('div', { class: 'proc-name', text: procName(proc) }));
     if (sel.ok) {
       hero.appendChild(h('div', { class: 'fig' }, [nf(sel.esd[b], dpE), h('span', { class: 'u', text: u })]));
       hero.appendChild(h('div', { class: 'cap', text: t(BASIS_LBL[b]) }));
       const meta = h('div', { class: 'meta' });
       const m = (k, v) => { meta.appendChild(h('span', { text: k })); meta.appendChild(h('b', { text: v })); };
-      m(t('mConc'), `${pct(sel.xconc, 1)} → ${pct(sel.xdil, 1)} %`);
-      m(t('mLimit'), t(sel.limit === 'charge' ? 'limCharge' : sel.limit === 'storage' ? 'limStorage' : 'limDesorber'));
+      if (P.cryst) m(t('mConcCryst'), `${pct(sel.xconc, 1)} (${pct(sel.xliq, 1)}) → ${pct(sel.xdil, 1)} %`);
+      else m(t('mConc'), `${pct(sel.xconc, 1)} → ${pct(sel.xdil, 1)} %`);
+      if (P.cryst) {
+        m(t('mSolid'), pct(sel.solidFrac, 0) + ' %');
+        m(t('mPasses'), (sel.passes < 100 ? nf(sel.passes, sel.passes < 10 ? 1 : 0) : '> 100') + ' ×');
+      }
+      if (P.stages === 2) { m(t('mTm'), `${nf(sel.Tm, 1)} °C`); m(t('mXmid'), `${pct(sel.xmid, 1)} %`); }
+      m(t('mLimit'), limLbl(sel));
       m(t('mOut'), `${nf(sel.TabsStart, 1)} °C`);
       m(t('mRatio'), nf(sel.eta, 2));
       hero.appendChild(meta);
+      if (P.cryst && !(sel.solidFrac > 1e-6)) hero.appendChild(h('span', { class: 'warnline', style: 'color:var(--muted)', text: t('mNoCryst') }));
       for (const wv of sel.warnings) hero.appendChild(h('span', { class: 'warnline', text: '⚠ ' + t(wv === 'dilute-crystallises' ? 'wDil' : 'wAbs') }));
     } else {
       hero.appendChild(h('div', { class: 'fig', style: 'font-size:34px' }, [t('infeasible')]));
       hero.appendChild(h('div', { class: 'cap', text: sel.reason === 'nocharge' ? t('reasonCharge') : t('reasonLift') }));
     }
-    // bars
+    // bars (all pairs, selected process); a tick marks the single-stage value for reference
     const bars = $('#stBars'); bars.innerHTML = '';
-    bars.appendChild(h('div', { class: 'eyebrow', style: 'margin-bottom:6px', text: t(BASIS_LBL[b]) }));
+    bars.appendChild(h('div', { class: 'eyebrow', style: 'margin-bottom:6px', text: t(BASIS_LBL[b]) + ' · ' + procName(proc) }));
     const wr = waterRef(st);
-    const vals = ORDER.map(id => C[id].ok ? C[id].esd[b] : 0);
+    const vals = ORDER.map(id => C[id].ok ? C[id].esd[b] : 0).concat(ORDER.map(id => Cs[id].ok ? Cs[id].esd[b] : 0));
     const vmax = Math.max(...vals, isFinite(wr) ? wr : 0) * 1.04 || 1;
     for (const id of ORDER) {
-      const c = C[id];
+      const c = C[id], cs = Cs[id];
       const row = h('div', { class: 'bar-row' + (id === S.fluid ? ' sel' : ''), style: `--c:${color(id)}` });
       row.appendChild(h('span', { class: 'name' }, [h('span', { class: 'dot' }), h('span', { html: FORM[id] })]));
       const tr = h('div', { class: 'track' });
       if (c.ok) tr.appendChild(h('div', { class: 'bar', style: `width:${(100 * c.esd[b] / vmax).toFixed(2)}%` }));
+      if (proc !== 'single' && cs.ok) tr.appendChild(h('span', { class: 'tick-ref', style: `left:${(100 * cs.esd[b] / vmax).toFixed(2)}%`, title: `${procName('single')}: ${nf(cs.esd[b], dpE)} ${u}` }));
       row.appendChild(tr);
       row.appendChild(c.ok ? h('span', { class: 'val' }, [nf(c.esd[b], dpE), h('span', { class: 'u', text: u })]) : h('span', { class: 'val na', text: t('infeasible') }));
       row.addEventListener('click', () => { setFluid(id); });
@@ -2986,70 +3360,172 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       row.appendChild(h('span', { class: 'val' }, [nf(wr, dpE), h('span', { class: 'u', text: u })]));
       bars.appendChild(row);
     }
-    renderLiftChart(C);
+    if (proc !== 'single') {
+      const lg = h('div', { class: 'legend', style: 'margin-top:6px;font-size:12px;color:var(--muted)' });
+      const gl = h('span', null, [h('span', { style: 'display:inline-block;width:0;height:12px;border-left:2px solid var(--ink);opacity:.55;margin-right:2px' }), procName('single')]);
+      lg.appendChild(gl); bars.appendChild(lg);
+    }
+    renderLiftChart();
     renderCycleChart(sel);
     renderCycleTable(C);
   }
 
-  function renderLiftChart(Cnow) {
-    const st = S.st, b = st.basis;
+  // ---------- energy density vs lift (Fig. 7 of the paper, live) ----------
+  const LIFTS = (() => { const a = [0.5]; for (let v = 1; v <= 40; v++) a.push(v); for (let v = 42; v <= 60; v += 2) a.push(v); return a; })();
+  const curveCache = new Map();
+  let liftJob = 0;
+  function curveKey(fid, proc) { const st = S.st; return [fid, proc, st.Tdes, st.Tcond, st.Tevap, st.Tstore, st.margin, st.sensible ? 's' + st.eps : '-'].join('|'); }
+  // compute missing curves in small slices so sliders stay responsive; true if all cached
+  function getCurves(specs, done) {
+    const job = ++liftJob;
+    const todo = specs.filter(sp => !curveCache.has(curveKey(sp.fid, sp.proc))).map(sp => ({ sp, k: curveKey(sp.fid, sp.proc), pts: [], i: 0, seen: false, dead: false }));
+    if (!todo.length) return true;
+    const opts0 = cycleOpts();
+    const run = () => {
+      if (job !== liftJob) return;
+      const t0 = performance.now();
+      while (todo.length && performance.now() - t0 < 22) {
+        const it = todo[0], L = LIFTS[it.i++];
+        const c = it.dead ? null : AA.cycle(it.sp.fid, Object.assign({}, opts0, { Tabs: opts0.Tevap + L, process: it.sp.proc }));
+        if (c && c.ok) { it.pts.push({ L, esd: c.esd, N: c.passes, Tm: c.Tm }); it.seen = true; }
+        else { it.pts.push({ L, esd: null }); if (it.seen) it.dead = true; }  // once infeasible after a feasible stretch, larger lifts stay infeasible
+        if (it.i >= LIFTS.length) {
+          curveCache.set(it.k, it.pts); todo.shift();
+          if (curveCache.size > 240) curveCache.delete(curveCache.keys().next().value);
+        }
+      }
+      if (todo.length) setTimeout(run, 0); else done();
+    };
+    setTimeout(run, 90); // short debounce: nothing is computed while a slider is being dragged
+    return false;
+  }
+  function liftSpecs() {
+    const st = S.st;
+    return st.cmp === 'proc' ? PROC.map(p => ({ fid: S.fluid, proc: p })) : ORDER.map(id => ({ fid: id, proc: st.process }));
+  }
+  function renderLiftChart() {
     const el = $('#chartLift');
-    const lifts = []; for (let L = 0; L <= 40; L += 1) lifts.push(L);
-    const series = {};
-    let vmax = 0;
-    for (const id of ORDER) {
-      series[id] = lifts.map(L => { const c = AA.cycle(id, cycleOpts({ Tabs: st.Tevap + L })); return c.ok ? c.esd[b] : NaN; });
-      vmax = Math.max(vmax, ...series[id].filter(isFinite));
+    $$('#cmpSeg button').forEach(x => x.setAttribute('aria-pressed', String(x.dataset.cmp === S.st.cmp)));
+    const specs = liftSpecs();
+    const ready = getCurves(specs, () => { el.classList.remove('busy'); drawLift(specs); });
+    if (ready) { el.classList.remove('busy'); drawLift(specs); }
+    else {
+      el.classList.add('busy');
+      if (!el.querySelector('svg')) el.innerHTML = `<p class="hint" style="padding:24px 16px">${t('computing')}</p>`;
     }
-    const wser = lifts.map(L => waterRef(Object.assign({}, st, { Tabs: st.Tevap + L })));
+  }
+  function drawLift(specs) {
+    const st = S.st, b = st.basis, el = $('#chartLift'), mode = st.cmp;
+    const xmax = (mode === 'proc' || AA.procInfo(st.process).stages === 2) ? 60 : 40;
+    const isSel = sp => mode === 'proc' ? sp.proc === st.process : sp.fid === S.fluid;
+    const colOf = sp => color(mode === 'proc' ? S.fluid : sp.fid);
+    const nameOf = sp => mode === 'proc' ? procName(sp.proc, true) : FORM_TXT[sp.fid];
+    const series = specs.map(sp => ({
+      sp, pts: (curveCache.get(curveKey(sp.fid, sp.proc)) || []).filter(p => p.L <= xmax + 1e-9).map(p => ({ L: p.L, v: p.esd ? p.esd[b] : NaN, N: p.N, Tm: p.Tm }))
+    }));
+    const pubAvail = paperBC() && b === 'm3Dil';
+    const pub = pubAvail && st.pub ? specs.map(sp => ({ sp, pts: ((PUBLISHED || {})[sp.fid] || {})[sp.proc] || [] })) : [];
+    const wL = []; for (let L = 0; L <= xmax; L += 1) wL.push(L);
+    const wser = wL.map(L => waterRef(Object.assign({}, st, { Tabs: st.Tevap + L })));
+    let vmax = 0;
+    series.forEach(sr => sr.pts.forEach(p => { if (isFinite(p.v)) vmax = Math.max(vmax, p.v); }));
+    pub.forEach(sr => sr.pts.forEach(p => { if (p[0] <= xmax) vmax = Math.max(vmax, p[1]); }));
     if (wser.some(isFinite)) vmax = Math.max(vmax, ...wser.filter(isFinite));
-    $('#liftSub').textContent = `${t('liftSub')} ${nf(st.Tevap, 1)} °C · ${t(BASIS_LBL[b])}`;
+    const fl = mode === 'proc' ? `${FORM_TXT[S.fluid]}–H₂O` : procName(st.process);
+    $('#liftSub').textContent = `${fl} · ${t('liftSub')} ${nf(st.Tevap, 1)} °C · ${t(BASIS_LBL[b])}`;
     const ctx = frame(el, {
-      height: w => Math.max(260, Math.min(380, w * 0.46)),
-      margin: { t: 14, r: 60, b: 46, l: 60 }, marginNarrow: { r: 44, l: 50 }, label: t('liftTitle')
+      height: w => Math.max(270, Math.min(400, w * 0.48)),
+      margin: { t: 14, r: 92, b: 46, l: 60 }, marginNarrow: { r: 76, l: 50 }, label: t('liftTitle')
     });
-    const X = lin(0, 40, 0, ctx.iw);
-    const [y0, y1] = niceDomain(0, vmax || 1, 6);
+    const X = lin(0, xmax, 0, ctx.iw);
+    const [, y1] = niceDomain(0, vmax || 1, 6);
     const Y = lin(0, y1, ctx.ih, 0);
     const yt = linTicks(0, y1, 6).ticks;
-    const xt = linTicks(0, 40, ctx.narrow ? 4 : 8).ticks;
+    const xt = linTicks(0, xmax, ctx.narrow ? 4 : (xmax > 40 ? 6 : 8)).ticks;
     gridLines(ctx, xt.map(X), yt.map(Y));
     const dpE = b.startsWith('m3') ? 0 : 2;
     axisBottom(ctx, X, xt, v => nf(v, 0), t('axLift'));
     axisLeft(ctx, Y, yt, v => nf(v, b.startsWith('m3') ? 0 : 2), t('axEsd') + basisUnit(b));
-    // current lift marker
+    // current lift
     const Lnow = st.Tabs - st.Tevap;
-    if (Lnow >= 0 && Lnow <= 40) {
+    if (Lnow >= 0 && Lnow <= xmax) {
       s('line', { x1: X(Lnow), x2: X(Lnow), y1: 0, y2: ctx.ih, style: 'stroke:var(--ink);stroke-width:1;opacity:.5' }, ctx.data);
       s('text', { class: 'note', x: X(Lnow) + 5, y: 12, text: nf(Lnow, 1) + ' K' }, ctx.over);
     }
-    if (wser.some(isFinite)) s('path', { class: 'series ref', d: pathOf(lifts.map((L, i) => [X(L), Y(wser[i])])) }, ctx.data);
-    const ends = [];
-    for (const id of ORDER) {
-      const pts = lifts.map((L, i) => [X(L), Y(series[id][i])]);
-      s('path', { class: 'series', d: pathOf(pts), style: `stroke:${color(id)};stroke-width:${id === S.fluid ? 2.6 : 2}` }, ctx.data);
-      // direct label at the end of the feasible range
-      let li = -1; for (let i = pts.length - 1; i >= 0; i--) if (isFinite(series[id][i])) { li = i; break; }
-      if (li >= 0) ends.push({ id, x: pts[li][0], y: pts[li][1] });
-      const c = Cnow[id];
-      if (c.ok && Lnow >= 0 && Lnow <= 40) s('circle', { class: 'marker', cx: X(Lnow), cy: Y(c.esd[b]), r: 4.5, style: `fill:${color(id)}` }, ctx.over);
+    if (wser.some(isFinite)) s('path', { class: 'series ref', d: pathOf(wL.map((L, i) => [X(L), Y(wser[i])])) }, ctx.data);
+    // value at the current lift (selected curve in process mode, every pair otherwise)
+    if (Lnow > 0 && Lnow <= xmax) for (const sp of specs) {
+      if (mode === 'proc' && sp.proc !== st.process) continue;
+      const c = AA.cycle(sp.fid, cycleOpts({ process: sp.proc }));
+      if (c.ok) s('circle', { class: 'marker', cx: X(Lnow), cy: Y(c.esd[b]), r: 5, style: `fill:${colOf(sp)}` }, ctx.over);
     }
-    // place end labels, nudging apart minimally (labels sit right of line ends)
-    ends.sort((a, b2) => a.y - b2.y);
-    for (let i = 1; i < ends.length; i++) if (Math.abs(ends[i].y - ends[i - 1].y) < 13 && Math.abs(ends[i].x - ends[i - 1].x) < 50) ends[i].y = ends[i - 1].y + 13;
+    // published points (Fig. 7): hollow markers, shape = process
+    const gPub = s('g', null, ctx.data);
+    for (const sr of pub) {
+      const ps = PSTYLE[sr.sp.proc];
+      for (const p of sr.pts) if (p[0] <= xmax) marker(gPub, ps.mk, X(p[0]), Y(p[1]), 2.6, colOf(sr.sp), true).setAttribute('opacity', '0.75');
+    }
+    // computed curves: unselected first, selected on top
+    const ends = [];
+    const ordered = series.slice().sort((a, c) => (isSel(a.sp) ? 1 : 0) - (isSel(c.sp) ? 1 : 0));
+    for (const sr of ordered) {
+      const ps = PSTYLE[sr.sp.proc], col = colOf(sr.sp), on = isSel(sr.sp);
+      const pts = sr.pts.map(p => [X(p.L), Y(p.v)]);
+      s('path', { class: 'series', d: pathOf(pts), style: `stroke:${col};stroke-width:${on ? 2.6 : 1.7};${ps.dash ? 'stroke-dasharray:' + ps.dash.replace(' ', ',') + ';' : ''}opacity:${on || mode === 'pairs' ? 1 : 0.85}` }, ctx.data);
+      if (mode === 'proc') for (const p of sr.pts) if (isFinite(p.v) && Math.abs(p.L % 5) < 1e-9 && p.L > 0) marker(ctx.data, ps.mk, X(p.L), Y(p.v), on ? 4 : 3.4, col, ps.open);
+      let li = -1; for (let i = sr.pts.length - 1; i >= 0; i--) if (isFinite(sr.pts[i].v)) { li = i; break; }
+      if (li >= 0) {
+        const e = { sp: sr.sp, x: pts[li][0], y: pts[li][1], on };
+        // physical limit: a crystallising branch ends at a finite density where x_dil reaches the liquid concentration
+        const endsInside = li < sr.pts.length - 1 && sr.pts[li].L < xmax;
+        if (endsInside && AA.procInfo(sr.sp.proc).cryst && sr.pts[li].v > 0.04 * y1) {
+          s('line', { x1: e.x, x2: e.x, y1: e.y - 9, y2: e.y + 9, style: `stroke:${col};stroke-width:2` }, ctx.data);
+          e.lim = true;
+        }
+        ends.push(e);
+      }
+    }
+    // end labels: shift down until they no longer overlap a label that is already placed
+    const taken = [];
+    const fits = bx => !taken.some(o => !(bx[2] < o[0] || bx[0] > o[2] || bx[3] < o[1] || bx[1] > o[3]));
+    ends.sort((a, c) => a.y - c.y);
     for (const e of ends) {
-      s('line', { x1: e.x, x2: e.x + 6, y1: e.y, y2: e.y, style: `stroke:${color(e.id)};stroke-width:1` }, ctx.over);
-      s('text', { class: 'iso-label', x: e.x + 8, y: e.y + 4, text: FORM_TXT[e.id], style: 'font-weight:600;fill:var(--ink);font-family:var(--font-sans)' }, ctx.over);
+      const txt = nameOf(e.sp) + (e.lim && e.on && e.x < ctx.iw - 4 ? ' · ' + t('physLim') : '');
+      const w = txt.length * (e.on ? 6.6 : 6.2);
+      let ly = e.y + 4, bx = null;
+      for (let k = 0; k < 8; k++) { bx = [e.x + 6, ly - 11, e.x + 10 + w, ly + 3]; if (fits(bx)) break; ly += 13; }
+      taken.push(bx);
+      s('path', { d: `M${e.x},${e.y}L${e.x + 6},${ly - 4}`, style: `fill:none;stroke:${colOf(e.sp)};stroke-width:1` }, ctx.over);
+      s('text', { class: 'iso-label', x: e.x + 8, y: ly, text: txt, style: `font-weight:${e.on ? 700 : 600};fill:var(--ink);font-family:var(--font-sans)` }, ctx.over);
     }
     if (wser.some(isFinite)) {
       let li = -1; for (let i = wser.length - 1; i >= 0; i--) if (isFinite(wser[i])) { li = i; break; }
-      if (li >= 0) s('text', { class: 'iso-label', x: X(lifts[li]) - 4, y: Y(wser[li]) - 6, 'text-anchor': 'end', text: t('waterRef'), style: 'fill:var(--muted);font-family:var(--font-sans)' }, ctx.over);
+      if (li >= 0) {
+        const wt = t('waterRef'), ww = wt.length * 6.2, wx = X(wL[li]) - 4, wy = Y(wser[li]) - 6;
+        if (fits([wx - ww, wy - 11, wx, wy + 3])) s('text', { class: 'iso-label', x: wx, y: wy, 'text-anchor': 'end', text: wt, style: 'fill:var(--muted);font-family:var(--font-sans)' }, ctx.over);
+      }
     }
-    const dll = $('#liftDl'); dll.innerHTML = ''; dll.appendChild(exportButtons(el, fileBase('storage_energy-density-vs-lift')));
+    const dll = $('#liftDl'); dll.innerHTML = ''; dll.appendChild(exportButtons(el, fileBase(`storage_energy-density-vs-lift_${mode === 'proc' ? S.fluid : st.process}`)));
     // legend
     const lg = $('#liftLegend'); lg.innerHTML = '';
-    for (const id of ORDER) lg.appendChild(h('span', null, [h('i', { style: `--k:${color(id)}` }), FORM_TXT[id]]));
+    for (const sp of specs) {
+      const ps = PSTYLE[sp.proc];
+      lg.appendChild(h('span', null, [legendGlyph(ps.dash, mode === 'proc' ? ps.mk : null, ps.open, colOf(sp)), nameOf(sp)]));
+    }
     if (wser.some(isFinite)) lg.appendChild(h('span', null, [h('i', { style: '--k:var(--c-water)' }), t('waterRefLong')]));
+    if (pub.length) lg.appendChild(h('span', null, [legendGlyph(null, 'circle', true, 'var(--ink-2)'), t('pubLeg')]));
+    // published-curve switch
+    const pb = $('#liftPub'); pb.innerHTML = '';
+    if (pubAvail) {
+      const cbx = h('input', { type: 'checkbox', id: 'stPub' }); cbx.checked = !!st.pub;
+      cbx.addEventListener('change', () => { st.pub = cbx.checked; save(); renderLiftChart(); });
+      pb.appendChild(h('label', { class: 'check', for: 'stPub', title: t('pubNote') }, [cbx, h('span', { text: t('pubCurves') })]));
+    } else {
+      pb.appendChild(h('button', {
+        type: 'button', class: 'linkish', text: t('pubApply'), title: t('pubNote'),
+        onclick: () => { Object.assign(st, PAPER_BC, { sensible: false, basis: 'm3Dil', pub: true }); save(); renderStorageFields(); renderStorage(); }
+      }));
+    }
     // hover tooltip
     const tip = h('div', { class: 'tooltip' }); el.appendChild(tip);
     const vl = s('line', { class: 'cross', y1: 0, y2: ctx.ih, x1: -10, x2: -10, visibility: 'hidden', 'data-ui': 1 }, ctx.over);
@@ -3057,17 +3533,24 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     const move = ev => {
       const r = ctx.svg.getBoundingClientRect(), sc = ctx.Wd / r.width;
       const px = (ev.clientX - r.left) * sc - ctx.m.l;
-      const L = Math.max(0, Math.min(40, Math.round(X.inv(px))));
-      const i = lifts.indexOf(L);
+      const Lraw = Math.max(0, Math.min(xmax, X.inv(px)));
+      let L = LIFTS[0]; for (const v of LIFTS) if (v <= xmax && Math.abs(v - Lraw) < Math.abs(L - Lraw)) L = v;
       vl.setAttribute('x1', X(L)); vl.setAttribute('x2', X(L)); vl.setAttribute('visibility', 'visible');
       tip.innerHTML = '';
-      tip.appendChild(h('div', { class: 'tt-h', text: `${t('liftNow')} ${nf(L, 0)} K · T_abs = ${nf(st.Tevap + L, 1)} °C` }));
-      const rowsArr = ORDER.map(id => ({ id, v: series[id][i] })).sort((a, b2) => (isFinite(b2.v) ? b2.v : -1) - (isFinite(a.v) ? a.v : -1));
-      for (const rr of rowsArr) tip.appendChild(h('div', { class: 'tt-r' }, [h('i', { style: `--k:${color(rr.id)}` }), h('span', { text: FORM_TXT[rr.id] }), h('b', { text: isFinite(rr.v) ? nf(rr.v, dpE) + ' ' + basisUnit(b) : t('infeasible') })]));
-      if (isFinite(wser[i])) tip.appendChild(h('div', { class: 'tt-r' }, [h('i', { style: '--k:var(--c-water)' }), h('span', { text: t('waterRef') }), h('b', { text: nf(wser[i], dpE) + ' ' + basisUnit(b) })]));
+      tip.appendChild(h('div', { class: 'tt-h', text: `${t('liftNow')} ${nf(L, L % 1 ? 1 : 0)} K · T_abs = ${nf(st.Tevap + L, 1)} °C` }));
+      const rowsArr = series.map(sr => ({ sp: sr.sp, p: sr.pts.find(p => p.L === L) })).sort((a, c) => ((c.p && isFinite(c.p.v)) ? c.p.v : -1) - ((a.p && isFinite(a.p.v)) ? a.p.v : -1));
+      for (const rr of rowsArr) {
+        const ok = rr.p && isFinite(rr.p.v);
+        let txt = ok ? nf(rr.p.v, dpE) + ' ' + basisUnit(b) : t('infeasible');
+        if (ok && AA.procInfo(rr.sp.proc).cryst && rr.p.N > 1.0001) txt += ` · ${rr.p.N < 100 ? nf(rr.p.N, rr.p.N < 10 ? 1 : 0) : '>100'}×`;
+        const ps = PSTYLE[rr.sp.proc];
+        tip.appendChild(h('div', { class: 'tt-r' }, [legendGlyph(ps.dash, mode === 'proc' ? ps.mk : null, ps.open, colOf(rr.sp)), h('span', { text: nameOf(rr.sp) }), h('b', { text: txt })]));
+      }
+      const wi = wL.indexOf(Math.round(L));
+      if (wi >= 0 && isFinite(wser[wi])) tip.appendChild(h('div', { class: 'tt-r' }, [h('i', { style: '--k:var(--c-water)' }), h('span', { text: t('waterRef') }), h('b', { text: nf(wser[wi], dpE) + ' ' + basisUnit(b) })]));
       const cw = el.clientWidth;
       const left = (X(L) + ctx.m.l) / sc;
-      tip.style.left = (left + 14 + 190 > cw ? left - 200 : left + 14) + 'px';
+      tip.style.left = (left + 14 + 230 > cw ? Math.max(4, left - 240) : left + 14) + 'px';
       tip.style.top = '10px';
       tip.classList.add('on');
     };
@@ -3075,25 +3558,132 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     hit.addEventListener('pointerleave', () => { tip.classList.remove('on'); vl.setAttribute('visibility', 'hidden'); });
   }
 
+  // ---------- storage cycle in the p–T diagram + process schematic ----------
   function renderCycleChart(c) {
     const st = S.st;
     const el = $('#chartCycle');
-    $('#cycleSub').innerHTML = `${FORM[S.fluid]}–H<sub>2</sub>O`;
+    $('#cycleSub').innerHTML = `${FORM[S.fluid]}–H<sub>2</sub>O · ${procName(st.process)}`;
+    // zoom the pressure axis onto the cycle (it lives in a narrow band near the water line)
+    const pTop = Math.max(W.psat(st.Tcond), W.psat(st.Tevap), c.ok && c.Tm ? W.psat(c.Tm) : 0) * 6;
+    const nice = [1, 2, 5, 10];
+    let pmax = 2e5;
+    for (let e = 3; e <= 5; e++) { const hit = nice.find(m => m * Math.pow(10, e) >= pTop); if (hit) { pmax = Math.max(1e4, hit * Math.pow(10, e)); break; } }
     renderPT(el, {
-      fid: S.fluid, cycle: c.ok ? Object.assign({ Tdes: st.Tdes }, c) : null, aspect: 0.6, minH: 280, maxH: 460, dim: true,
-      Tmax: Math.max(120, Math.ceil((st.Tdes + 10) / 10) * 10), label: t('cycleTitle')
+      fid: S.fluid, cycle: c.ok ? Object.assign({ Tdes: st.Tdes }, c) : null, aspect: 0.62, minH: 300, maxH: 480, dim: true,
+      Tmax: Math.max(100, Math.ceil((st.Tdes + 10) / 10) * 10), pmax: Math.min(2e5, pmax), label: t('cycleTitle')
     });
-    const dlc = $('#cycleDl'); dlc.innerHTML = ''; dlc.appendChild(exportButtons(el, fileBase(`storage_cycle_${S.fluid}`)));
+    const dlc = $('#cycleDl'); dlc.innerHTML = ''; dlc.appendChild(exportButtons(el, fileBase(`storage_cycle_${S.fluid}_${st.process}`)));
     const lg = $('#cycleLegend'); lg.innerHTML = '';
-    lg.appendChild(h('span', null, [h('i', { style: `--k:${color(S.fluid)}` }), t('chargeLbl') + ' / ' + t('dischargeLbl')]));
+    const col = color(S.fluid);
+    lg.appendChild(h('span', null, [h('i', { style: `--k:${col}` }), t('chargeLbl') + ' / ' + t('dischargeLbl')]));
+    if (c.ok && c.cryst && c.solidFrac > 1e-6) {
+      lg.appendChild(h('span', null, [legendGlyph('5 3', null, false, col), t('crystPath')]));
+      lg.appendChild(h('span', null, [legendGlyph('1.5 3', null, false, 'var(--ink-2)'), t('recirc')]));
+    }
     lg.appendChild(h('span', null, [h('i', { style: '--k:var(--ink)' }), t('water')]));
     if (!c.ok) lg.appendChild(h('span', { text: '— ' + t('infeasible') }));
+    renderSchematic($('#schem'), c);
+    const P = AA.procInfo(st.process);
+    $('#schemNote').textContent = [P.stages === 2 ? t('schemNoteDouble') : t('schemNoteSingle'), P.cryst ? t('schemNoteCryst') : ''].join(' ').trim();
+  }
+
+  // process flow sheet in the style of Figs. 3–6: units, solution path with the state
+  // numbers of the p–T chart, live temperatures and concentrations
+  function renderSchematic(el, c) {
+    const st = S.st, P = AA.procInfo(st.process), fid = S.fluid;
+    const ok = c && c.ok;
+    const two = P.stages === 2;
+    const H = two ? 274 : 222, Wd = 320;
+    el.innerHTML = '';
+    const svg = s('svg', { viewBox: `0 0 ${Wd} ${H}`, role: 'img', 'aria-label': t('schemTitle') + ': ' + procName(st.process) }, el);
+    const id = 'sc' + (++uid);
+    const defs = s('defs', null, svg);
+    const mkArrow = (name, colr) => {
+      const m = s('marker', { id: id + name, viewBox: '0 0 10 10', refX: 8.5, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: 'auto-start-reverse' }, defs);
+      s('path', { d: 'M0,0L10,5L0,10z', style: `fill:${colr}` }, m);
+      return `url(#${id + name})`;
+    };
+    const aInk = mkArrow('i', 'var(--ink-2)'), aHot = mkArrow('h', 'var(--bad)'), aCold = mkArrow('c', 'var(--c-NaOH)');
+    const pat = s('pattern', { id: id + 'x', patternUnits: 'userSpaceOnUse', width: 6, height: 6, patternTransform: 'rotate(45)' }, defs);
+    s('rect', { x: 0, y: 0, width: 6, height: 6, style: `fill:${color(fid)};opacity:.16` }, pat);
+    s('line', { x1: 0, y1: 0, x2: 0, y2: 6, style: `stroke:${color(fid)};stroke-width:1.6;opacity:.8` }, pat);
+    const T1 = v => nf(v, 1) + ' °C', X1 = v => isFinite(v) ? pct(v, 1) + ' %' : '–';
+    const path = (d, cls, end, extra) => s('path', Object.assign({ d, class: cls, 'marker-end': end || null }, extra || {}), svg);
+    const text = (x, y, txt, cls, anchor) => s('text', { x, y, class: cls, 'text-anchor': anchor || 'start', text: txt }, svg);
+    const coil = (x, y, w, hot) => {
+      let d = `M${x},${y}`; const n = 5, dx = w / n;
+      for (let i = 0; i < n; i++) d += `h${dx * 0.5}v${i % 2 ? -10 : 10}h${dx * 0.5}`;
+      s('path', { d, class: 'coil', style: `stroke:${hot ? 'var(--bad)' : 'var(--c-NaOH)'}` }, svg);
+    };
+    const unit = (x, y, w, hh, title, sub, hot) => {
+      s('rect', { x, y, width: w, height: hh, rx: 6, class: 'box' }, svg);
+      text(x + w / 2, y + 15, title, 'lbl', 'middle');
+      if (sub) text(x + w / 2, y + 28, sub, 'sub', 'middle');
+      coil(x + 12, y + hh - 18, w - 24, hot);
+    };
+    const tank = (x, y, w, hh, title, sub, cryst) => {
+      s('rect', { x, y, width: w, height: hh, rx: 7, class: 'tank' }, svg);
+      if (cryst) s('rect', { x: x + 1, y: y + hh * 0.6, width: w - 2, height: hh * 0.4 - 1, rx: 6, class: 'hatchfill', style: `fill:url(#${id}x)` }, svg);
+      text(x + w / 2, y + 15, title, 'lbl', 'middle');
+      if (sub) text(x + w / 2, y + 29, sub, 'val', 'middle');
+      if (cryst) text(x + w / 2, y + 46, t('sCryst'), 'val', 'middle');
+    };
+    const stateTag = (x, y, n, label, anchor, dotted) => {
+      s('circle', { cx: x, cy: y, r: 7.5, style: `fill:var(--surface);stroke:var(--ink-2);stroke-width:1.1;${dotted ? 'stroke-dasharray:2,2' : ''}` }, svg);
+      text(x, y + 3.6, n, 'sub', 'middle').setAttribute('style', 'font-weight:700;fill:var(--ink);font-size:9.5px');
+      if (label) text(anchor === 'end' ? x - 11 : x + 11, y + 3.6, label, 'val', anchor === 'end' ? 'end' : 'start');
+    };
+    const vapour = (x1, x2, y) => { path(`M${x1},${y}H${x2}`, 'vap', aInk); text((x1 + x2) / 2, y - 7, 'H₂O', 'sub', 'middle'); };
+    const xl = ok ? c.xliq : NaN, xd = ok ? c.xdil : NaN;
+    const concSub = P.cryst ? `${X1(ok ? c.xconc : NaN)}` : X1(xl);
+    if (!two) {
+      // conc. tank → riser (left) → absorber top; absorber → dilute tank
+      tank(22, 158, 76, 58, t('sConc'), concSub, P.cryst);
+      tank(124, 158, 72, 58, t('sDil'), X1(xd));
+      path('M22,187H10V24H232V58', 'flow', aInk);
+      unit(30, 60, 92, 70, t('sEvap'), `T ${T1(st.Tevap)}`, false);
+      unit(200, 60, 92, 70, t('sAbs'), `T ${T1(st.Tabs)}`, true);
+      path('M76,36V58', 'flow cold', aCold); text(84, 44, t('sSource'), 'sub');
+      path('M262,58V34', 'flow hot', aHot); text(268, 42, t('sHeat'), 'sub');
+      vapour(122, 198, 96);
+      path('M246,130V146H160V158', 'flow', aInk);
+      if (P.cryst) { path('M160,146H60V158', 'flow rec', aInk); text(110, 142, t('recirc'), 'sub', 'middle'); }
+      stateTag(25, 161, '1', '', 'start');
+      stateTag(232, 44, '2', X1(xl), 'end');
+      stateTag(216, 100, '3', '', 'start', true);
+      stateTag(246, 140, '4', X1(xd), 'start');
+      stateTag(127, 161, '5', '', 'start');
+    } else {
+      tank(22, 210, 76, 58, t('sConc'), concSub, P.cryst);
+      tank(124, 210, 72, 58, t('sDil'), X1(xd));
+      path('M22,239H10V20H232V34', 'flow', aInk);
+      unit(30, 36, 92, 62, t('sEvap') + ' 2', ok ? `T ${T1(c.Tm)}` : '', false);
+      unit(200, 36, 92, 62, t('sAbs') + ' 2', `T ${T1(st.Tabs)}`, true);
+      unit(30, 128, 92, 62, t('sAbs') + ' 1', ok ? `T ${T1(c.Tm)}` : '', true);
+      unit(200, 128, 92, 62, t('sEvap') + ' 1', `T ${T1(st.Tevap)}`, false);
+      path('M262,34V12', 'flow hot', aHot); text(268, 22, t('sHeat'), 'sub');
+      path('M76,127V100', 'heat', aHot); text(84, 117, ok ? 'T_m ' + T1(c.Tm) : 'T_m', 'sub');
+      vapour(122, 198, 66);
+      vapour(198, 124, 166);
+      path('M246,98V112H160V144H124', 'flow', aInk);
+      path('M262,236V192', 'flow cold', aCold); text(268, 230, t('sSource'), 'sub');
+      path('M96,190V204H160V210', 'flow', aInk);
+      if (P.cryst) path('M96,204H60V210', 'flow rec', aInk);
+      stateTag(25, 213, '1', '', 'start');
+      stateTag(232, 26, '2', X1(xl), 'end');
+      stateTag(212, 66, '3', '', 'start', true);
+      stateTag(246, 105, "3'", ok ? X1(c.xmid) : '–', 'start');
+      stateTag(42, 160, '4', '', 'start', true);
+      stateTag(127, 213, '5', '', 'start');
+      stateTag(96, 197, "4'", X1(xd), 'end');
+    }
+    if (!ok) s('rect', { x: 0, y: 0, width: Wd, height: H, style: 'fill:var(--surface);opacity:.45' }, svg);
   }
 
   function renderCycleTable(C) {
     const tbl = $('#cycleTable'); tbl.innerHTML = '';
-    const st = S.st;
-    const head = h('tr', null, [h('th', { text: '' })].concat(ORDER.map(id => h('th', { html: `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color(id)};margin-right:6px"></span>${FORM[id]}` }))));
+    const st = S.st, P = AA.procInfo(st.process);
+    const head = h('tr', null, [h('th', { text: procName(st.process) })].concat(ORDER.map(id => h('th', { html: `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color(id)};margin-right:6px"></span>${FORM[id]}` }))));
     tbl.appendChild(h('thead', null, head));
     const tb = h('tbody'); tbl.appendChild(tb);
     const row = (lbl, fn, unit) => {
@@ -3107,8 +3697,17 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     };
     const ok = (fn) => (c, id) => c.ok ? fn(c, id) : '–';
     row(t('tXc'), (c) => isFinite(c.xconc) ? pct(c.xconc, 1) : '–', '%');
+    if (P.cryst) {
+      row(t('tXl'), (c) => isFinite(c.xliq) ? pct(c.xliq, 1) : '–', '%');
+      row(t('tSolid'), (c) => isFinite(c.solidFrac) ? pct(c.solidFrac, 1) : '–', '%');
+    }
     row(t('tXd'), ok(c => pct(c.xdil, 1)), '%');
-    row(t('tLimit'), (c) => c.limit ? t(c.limit === 'charge' ? 'limCharge' : c.limit === 'storage' ? 'limStorage' : 'limDesorber') : '–');
+    if (P.stages === 2) {
+      row(t('tTm'), ok(c => nf(c.Tm, 1)), '°C');
+      row(t('tXm'), ok(c => pct(c.xmid, 1)), '%');
+    }
+    if (P.cryst) row(t('tPasses'), ok(c => c.passes < 100 ? nf(c.passes, 2) : '> 100'), '–');
+    row(t('tLimit'), (c) => c.limit ? limLbl(c) : '–');
     row(t('tDm'), ok(c => nf(c.dm, 3)), 'kg/kg');
     row(t('tQout'), ok(c => nf(c.Qabs / 3600, 3)), 'kWh/kg');
     row(t('tQin'), ok(c => nf(c.Qdes / 3600, 3)), 'kWh/kg');
@@ -3144,19 +3743,21 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     }
     if (anyWarn) tb.appendChild(warnRow);
     const note = $('#cycleNote'); note.innerHTML = '';
-    note.appendChild(document.createTextNode(t('cycleNote') + ' '));
+    note.appendChild(document.createTextNode(t('cycleNote') + ' ' + (st.process !== 'single' ? t('cycleNoteProc') + ' ' : '')));
     note.appendChild(h('span', { text: t('paperRef') + ' ' }));
     note.appendChild(h('a', { href: 'https://doi.org/10.1016/j.enconman.2026.121845', target: '_blank', rel: 'noopener', text: 'Höffner, Ziegler & Elbel (2026), Energy Conversion and Management 366, 121845' }));
     note.appendChild(document.createTextNode('.'));
   }
   function cycleCSV() {
     const C = cycles(), st = S.st;
-    const keys = [['x_conc [-]', c => c.xconc], ['x_dil [-]', c => c.xdil], ['dm_w [kg/kg_salt]', c => c.dm], ['Q_abs [kWh/kg_salt]', c => c.Qabs / 3600], ['Q_des [kWh/kg_salt]', c => c.Qdes / 3600], ['Q_evap [kWh/kg_salt]', c => c.Qevap / 3600], ['Q_cond [kWh/kg_salt]', c => c.Qcond / 3600], ['heat ratio [-]', c => c.eta], ['T_out,max [°C]', c => c.TabsStart], ['ESD dilute [kWh/m3]', c => c.esd.m3Dil], ['ESD single tank [kWh/m3]', c => c.esd.m3Single], ['ESD two tanks [kWh/m3]', c => c.esd.m3Two], ['ESD [kWh/kg_solution]', c => c.esd.kgSol], ['ESD [kWh/kg_salt]', c => c.esd.kgSalt]];
+    const keys = [['x_conc,total [-]', c => c.xconc], ['x_conc,liquid [-]', c => c.xliq], ['crystal mass fraction charged [-]', c => c.solidFrac], ['x_dil [-]', c => c.xdil],
+      ['T_m [°C]', c => c.Tm], ['x after absorber 2 [-]', c => c.xmid], ['passes through crystal tank [-]', c => c.passes],
+      ['dm_w [kg/kg_salt]', c => c.dm], ['Q_abs [kWh/kg_salt]', c => c.Qabs / 3600], ['Q_des [kWh/kg_salt]', c => c.Qdes / 3600], ['Q_evap [kWh/kg_salt]', c => c.Qevap / 3600], ['Q_cond [kWh/kg_salt]', c => c.Qcond / 3600], ['heat ratio [-]', c => c.eta], ['T_out,max [°C]', c => c.TabsStart], ['ESD dilute [kWh/m3]', c => c.esd.m3Dil], ['ESD single tank [kWh/m3]', c => c.esd.m3Single], ['ESD two tanks [kWh/m3]', c => c.esd.m3Two], ['ESD [kWh/kg_solution]', c => c.esd.kgSol], ['ESD [kWh/kg_salt]', c => c.esd.kgSalt]];
     const de = S.gen.fmt === 'de', sep = de ? ';' : ',';
-    const num = v => isFinite(v) ? (de ? (+v.toPrecision(6)).toString().replace('.', ',') : (+v.toPrecision(6)).toString()) : '';
-    const lines = [`# T_des=${st.Tdes} T_cond=${st.Tcond} T_evap=${st.Tevap} T_abs=${st.Tabs} T_store=${st.Tstore} margin=${st.margin} sensible=${st.sensible} eps=${st.eps}`];
+    const num = v => (v !== undefined && v !== null && isFinite(v)) ? (de ? (+v.toPrecision(6)).toString().replace('.', ',') : (+v.toPrecision(6)).toString()) : '';
+    const lines = [`# process=${st.process} T_des=${st.Tdes} T_cond=${st.Tcond} T_evap=${st.Tevap} T_abs=${st.Tabs} T_store=${st.Tstore} margin=${st.margin} sensible=${st.sensible} eps=${st.eps}`];
     lines.push(['quantity'].concat(ORDER).join(sep));
-    for (const [k, fn] of keys) lines.push([k].concat(ORDER.map(id => C[id].ok || k.startsWith('x_conc') ? num(fn(C[id])) : '')).join(sep));
+    for (const [k, fn] of keys) lines.push([k].concat(ORDER.map(id => C[id].ok || k.startsWith('x_conc') || k.startsWith('crystal') ? num(fn(C[id])) : '')).join(sep));
     return lines.join('\n');
   }
 
@@ -3177,7 +3778,19 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
 <div class="eq"><i>Q</i><sub>abs</sub> = ∫ [ <i>h</i>″(<i>T</i><sub>verd</sub>) − <i>h̄</i><sub>w</sub>(<i>x</i>, <i>T</i><sub>abs</sub>) ] d<i>x</i>/<i>x</i>² &nbsp; mit &nbsp; <i>h̄</i><sub>w</sub> = <i>h</i>′<sub>w</sub>(<i>T</i>) − Δ<i>h</i><sub>dil</sub>(<i>x</i>, <i>T</i>)</div>
 <p>Die partielle Enthalpie des Wassers folgt für NaOH und LiBr aus der Enthalpiekorrelation der Lösung (<i>h̄</i><sub>w</sub> = <i>h</i> − <i>x</i> ∂<i>h</i>/∂<i>x</i>), für LiCl und CaCl<sub>2</sub> direkt aus Condes differentieller Verdünnungsenthalpie. Der Stoffwertrechner zeigt zur Kontrolle zusätzlich die Clausius–Clapeyron-Schätzung aus der Dampfdruckkorrelation; beide stimmen im Gültigkeitsbereich meist auf wenige Prozent überein.</p>
 <p>Die Energiedichte lässt sich auf mehrere Bezugsgrößen beziehen: auf das Volumen der verdünnten Lösung (Standard), auf einen Schichtspeicher, in dem Lauge und Wasser übereinander in einem Tank lagern (größeres der beiden Zustandsvolumina), auf getrennte Tanks für Lösung und Wasser, auf die Masse der Lösung oder auf das Salz. Optional wird die sensible Wärme berücksichtigt, die nötig ist, um die Lösung von Speichertemperatur auf Prozesstemperatur zu bringen; ein Lösungswärmeübertrager gewinnt davon den Anteil ε zurück.</p>
-<p>Das Ergebnis ist eine thermodynamische Obergrenze: Wärme- und Stoffübertragung, Druckverluste, unvollständige Gleichgewichte und Wärmeverluste begrenzen reale Speicher zusätzlich. Wer die Löslichkeitsgrenze gezielt überschreiten will, etwa mit kristallisierendem Speicher, braucht ein erweitertes Modell.</p>
+<p>Das Ergebnis ist eine thermodynamische Obergrenze: Wärme- und Stoffübertragung, Druckverluste, unvollständige Gleichgewichte und Wärmeverluste begrenzen reale Speicher zusätzlich. Die drei weiteren Prozessvarianten aus [1] beschreibt der folgende Abschnitt.</p>
+
+<h3>Prozessvarianten</h3>
+<p>Neben dem einstufigen Prozess (Abb. 3 in [1]) rechnet der Atlas die drei weiteren Schaltungen aus Abschnitt 2.2 von [1]. Alle Bilanzen sind je kg wasserfreiem Salz mit absoluten Lösungsenthalpien formuliert. Für jeden Absorber gilt</p>
+<div class="eq"><i>Q</i> = <i>h</i>(<i>x</i><sub>ein</sub>, <i>T</i><sub>ein</sub>)/<i>x</i><sub>ein</sub> + <i>w</i> · <i>h</i>″(<i>T</i><sub>V</sub>) − <i>h</i>(<i>x</i><sub>aus</sub>, <i>T</i><sub>aus</sub>)/<i>x</i><sub>aus</sub> &nbsp; mit &nbsp; <i>w</i> = 1/<i>x</i><sub>aus</sub> − 1/<i>x</i><sub>ein</sub></div>
+<p>Der Austritt steht im Gleichgewicht mit dem eintretenden Wärmeträger, <i>x</i><sub>aus</sub> = <i>x</i><sub>eq</sub>(<i>T</i><sub>aus</sub>, <i>p</i><sub>s</sub>(<i>T</i><sub>V</sub>)), wobei <i>T</i><sub>V</sub> die Temperatur des zugehörigen Verdampfers ist. Die gespeicherte Lösung wird rekuperativ auf die Temperatur vorgewärmt, mit der die verdünnte Lösung den letzten Absorber verlässt, aber nie unter die Speichertemperatur. Für den einstufigen Prozess ist das identisch mit dem Integral oben.</p>
+<p><b>Mit Kristallisation</b> (Abb. 4): Der Desorber konzentriert bis <i>x</i><sub>ges</sub> = min{ <i>x</i><sub>eq</sub>(<i>T</i><sub>des</sub>, <i>p</i><sub>s</sub>(<i>T</i><sub>kond</sub>)), <i>x</i><sub>kr</sub>(<i>T</i><sub>des</sub>) }. Beim Abkühlen im Tank fällt Salz aus, bis die Flüssigkeit die Löslichkeit <i>x</i><sub>fl</sub> = <i>x</i><sub>kr</sub>(<i>T</i><sub>sp</sub>) erreicht. Der Absorber verdünnt stets Lösung von <i>x</i><sub>fl</sub> auf <i>x</i><sub>entladen</sub>; die verdünnte Lösung läuft durch den Kristalltank zurück und löst dort Kristalle. Bis alle Kristalle gelöst sind, passiert jedes kg Salz den Absorber im Mittel</p>
+<div class="eq"><i>N</i> = (1/<i>x</i><sub>entladen</sub> − 1/<i>x</i><sub>ges</sub>) / (1/<i>x</i><sub>entladen</sub> − 1/<i>x</i><sub>fl</sub>)</div>
+<p>mal; die Nutzwärme ist <i>N</i> · <i>Q</i><sub>Durchgang</sub>. Die Lösungswärme der Kristalle fällt im Tank bei Speichertemperatur an und zählt nicht zur Nutzwärme. Nähert sich <i>x</i><sub>entladen</sub> der Löslichkeit <i>x</i><sub>fl</sub>, wächst <i>N</i> über alle Grenzen: Die Kurve endet bei endlicher Energiedichte (physikalische Grenze in Abb. 7 von [1]). Den höchsten Hub bestimmt also weiterhin die Löslichkeit bei Speichertemperatur.</p>
+<p><b>Zweistufig</b> (Abb. 5): Absorber 2 gibt die Nutzwärme bei <i>T</i><sub>abs</sub> ab und bezieht Dampf aus Verdampfer 2. Dessen Wärme stammt aus Absorber 1, der Dampf aus Verdampfer 1 bei <i>T</i><sub>verd</sub> aufnimmt. Absorber 1 und Verdampfer 2 arbeiten bei derselben Temperatur <i>T</i><sub>m</sub>, die aus der Energiebilanz folgt (Kondensat aus dem Wassertank bei <i>T</i><sub>sp</sub>):</p>
+<div class="eq"><i>Q</i><sub>A1</sub>(<i>T</i><sub>m</sub>) = <i>w</i><sub>A2</sub>(<i>T</i><sub>m</sub>) · [ <i>h</i>″(<i>T</i><sub>m</sub>) − <i>h</i>′(<i>T</i><sub>sp</sub>) ]</div>
+<p>Die Lösung aus Absorber 2 tritt mit <i>T</i><sub>abs</sub> in Absorber 1 ein und verlässt ihn mit <i>T</i><sub>m</sub>. Weil nur ein Teil des umgesetzten Wassers Nutzwärme liefert, sinkt die Energiedichte für kleine Hübe auf etwa die Hälfte; dafür reicht der Hub deutlich weiter. <b>Zweistufig mit Kristallisation</b> (Abb. 6) kombiniert beides. Bezugsvolumen bleibt die voll entladene Lösung; für die Bezugsgröße „Schichtspeicher“ wird das Kristallvolumen mit der Dichte des wasserfreien Salzes angesetzt, wie die Kristalle in [1] bilanziert werden.</p>
+<p>Gegenüber Abb. 7 in [1] können sich kleine Abweichungen ergeben, weil der Atlas die Grenzkonzentrationen aus den eingestellten Temperaturen bestimmt und alle Stoffpaare und Prozesse mit derselben Formulierung rechnet (absolute Enthalpien, geschlossene Massen- und Energiebilanz je Absorber). Bei den Randbedingungen von Abb. 7 lassen sich die publizierten Kurven im Diagramm „Energiedichte über dem Temperaturhub“ einblenden.</p>
 
 <h3>Wo die Stoffwerte herkommen</h3>
 <div class="table-wrap"><table class="src-table">
@@ -3221,7 +3834,19 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
 <div class="eq"><i>Q</i><sub>abs</sub> = ∫ [ <i>h</i>″(<i>T</i><sub>evap</sub>) − <i>h̄</i><sub>w</sub>(<i>x</i>, <i>T</i><sub>abs</sub>) ] d<i>x</i>/<i>x</i>² &nbsp; with &nbsp; <i>h̄</i><sub>w</sub> = <i>h</i>′<sub>w</sub>(<i>T</i>) − Δ<i>h</i><sub>dil</sub>(<i>x</i>, <i>T</i>)</div>
 <p>For NaOH and LiBr the partial enthalpy of water follows from the solution enthalpy correlation (<i>h̄</i><sub>w</sub> = <i>h</i> − <i>x</i> ∂<i>h</i>/∂<i>x</i>); for LiCl and CaCl<sub>2</sub> it comes directly from Conde's differential heat of dilution. As a check, the property calculator also shows the Clausius–Clapeyron estimate from the vapour-pressure correlation; within the validity ranges both usually agree within a few percent.</p>
 <p>Energy density can be referred to several bases: the volume of the dilute solution (default), a stratified store holding lye and water in one tank (the larger of the two state volumes), separate tanks for solution and water, the mass of solution, or the salt. Optionally the model includes the sensible heat needed to bring the solution from storage to process temperature; a solution heat exchanger recovers the fraction ε of it.</p>
-<p>The result is a thermodynamic upper bound: heat and mass transfer, pressure drops, incomplete equilibrium and heat losses limit real stores further. Exceeding the solubility limit on purpose, as in crystallising stores, needs an extended model.</p>
+<p>The result is a thermodynamic upper bound: heat and mass transfer, pressure drops, incomplete equilibrium and heat losses limit real stores further. The three further process variants of [1] are described in the next section.</p>
+
+<h3>Process variants</h3>
+<p>Besides the single-stage process (Fig. 3 in [1]), the atlas computes the three further arrangements of Section 2.2 of [1]. All balances are written per kg of anhydrous salt with absolute solution enthalpies. For every absorber</p>
+<div class="eq"><i>Q</i> = <i>h</i>(<i>x</i><sub>in</sub>, <i>T</i><sub>in</sub>)/<i>x</i><sub>in</sub> + <i>w</i> · <i>h</i>″(<i>T</i><sub>E</sub>) − <i>h</i>(<i>x</i><sub>out</sub>, <i>T</i><sub>out</sub>)/<i>x</i><sub>out</sub> &nbsp; with &nbsp; <i>w</i> = 1/<i>x</i><sub>out</sub> − 1/<i>x</i><sub>in</sub></div>
+<p>The outlet is in equilibrium with the entering heat-transfer fluid, <i>x</i><sub>out</sub> = <i>x</i><sub>eq</sub>(<i>T</i><sub>out</sub>, <i>p</i><sub>s</sub>(<i>T</i><sub>E</sub>)), where <i>T</i><sub>E</sub> is the temperature of the evaporator feeding it. The stored solution is preheated recuperatively to the temperature at which the dilute solution leaves the last absorber, but never below storage temperature. For the single-stage process this is identical to the integral above.</p>
+<p><b>With crystallisation</b> (Fig. 4): the desorber concentrates up to <i>x</i><sub>total</sub> = min{ <i>x</i><sub>eq</sub>(<i>T</i><sub>des</sub>, <i>p</i><sub>s</sub>(<i>T</i><sub>cond</sub>)), <i>x</i><sub>cr</sub>(<i>T</i><sub>des</sub>) }. As the tank cools, salt crystallises until the liquid reaches the solubility <i>x</i><sub>liq</sub> = <i>x</i><sub>cr</sub>(<i>T</i><sub>store</sub>). The absorber always dilutes solution from <i>x</i><sub>liq</sub> to <i>x</i><sub>discharged</sub>; the dilute solution returns through the crystal tank and dissolves crystals there. Until all crystals are dissolved, each kg of salt passes the absorber on average</p>
+<div class="eq"><i>N</i> = (1/<i>x</i><sub>discharged</sub> − 1/<i>x</i><sub>total</sub>) / (1/<i>x</i><sub>discharged</sub> − 1/<i>x</i><sub>liq</sub>)</div>
+<p>times, and the useful heat is <i>N</i> · <i>Q</i><sub>pass</sub>. The heat of dissolution of the crystals is exchanged in the tank at storage temperature and does not count as useful heat. As <i>x</i><sub>discharged</sub> approaches the solubility <i>x</i><sub>liq</sub>, <i>N</i> grows without bound: the curve ends at a finite energy density (the physical limit in Fig. 7 of [1]). The largest lift is therefore still set by the solubility at storage temperature.</p>
+<p><b>Double-stage</b> (Fig. 5): absorber 2 releases the useful heat at <i>T</i><sub>abs</sub> and takes vapour from evaporator 2. That evaporator is heated by absorber 1, which takes vapour from evaporator 1 at <i>T</i><sub>evap</sub>. Absorber 1 and evaporator 2 share the temperature <i>T</i><sub>m</sub>, which follows from the energy balance (condensate from the water tank at <i>T</i><sub>store</sub>):</p>
+<div class="eq"><i>Q</i><sub>A1</sub>(<i>T</i><sub>m</sub>) = <i>w</i><sub>A2</sub>(<i>T</i><sub>m</sub>) · [ <i>h</i>″(<i>T</i><sub>m</sub>) − <i>h</i>′(<i>T</i><sub>store</sub>) ]</div>
+<p>The solution from absorber 2 enters absorber 1 at <i>T</i><sub>abs</sub> and leaves it at <i>T</i><sub>m</sub>. Because only part of the cycled water yields useful heat, the energy density at small lifts drops to about half; in return the lift reaches much further. <b>Double-stage with crystallisation</b> (Fig. 6) combines both. The reference volume remains the fully discharged solution; for the “stratified tank” basis the crystal volume uses the density of the anhydrous salt, as the crystals are counted in [1].</p>
+<p>Small deviations from Fig. 7 in [1] can occur because the atlas derives the limiting concentrations from the temperatures you set and computes all working pairs and processes with one formulation (absolute enthalpies, closed mass and energy balance per absorber). At the boundary conditions of Fig. 7, the published curves can be overlaid in the chart “Energy density versus temperature lift”.</p>
 
 <h3>Where the property data come from</h3>
 <div class="table-wrap"><table class="src-table">
@@ -3346,6 +3971,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     $$('#fmtSeg button').forEach(b => b.addEventListener('click', () => { S.gen.fmt = b.dataset.fmt; save(); renderGen(); }));
     $('#copyCsv').addEventListener('click', () => copyText(genCSV(), $('#genPreview')));
     $('#copyCycle').addEventListener('click', () => copyText(cycleCSV(), $('#cycleTable')));
+    $$('#cmpSeg button').forEach(b => b.addEventListener('click', () => { S.st.cmp = b.dataset.cmp; save(); renderLiftChart(); }));
     $('#saveCsv').addEventListener('click', () => saveFile(fileBase(`${S.fluid}_properties`) + '.csv', genCSV()));
     $('#saveCycle').addEventListener('click', () => saveFile(fileBase('storage_comparison') + '.csv', cycleCSV()));
     // keyboard nudging of the pinned state on the main chart
