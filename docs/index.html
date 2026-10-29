@@ -2,18 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<script>/* Light by default; dark only when chosen with the switch on dorianhoeffner.com (dh-theme). */(function(){var t="light";try{if(localStorage.getItem("dh-theme")==="dark")t="dark";}catch(e){}document.documentElement.setAttribute("data-theme",t);})();</script>
+<script>/* Light by default; dark only when chosen with the switch on dorianhoeffner.com (dh-theme, local storage, no cookie). Follows a change made in another tab and on return via the back button. */(function(){function a(){var t="light";try{if(localStorage.getItem("dh-theme")==="dark")t="dark";}catch(e){}document.documentElement.setAttribute("data-theme",t);}a();addEventListener("storage",function(e){if(!e.key||e.key==="dh-theme")a();});addEventListener("pageshow",function(e){if(e.persisted)a();});})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Absorption Atlas</title>
-<meta name="description" content="Interactive p–T, h–x and solubility diagrams, property calculator and storage analysis (single- and double-stage, with and without crystallisation) for aqueous NaOH, LiBr, LiCl and CaCl2 solutions, based on the Python library absorptionlib.">
+<title>Absorption Atlas · Absorption thermal batteries and salt solution properties</title>
+<meta name="description" content="How much heat can an absorption thermal battery (ATB) store? Interactive storage analysis (single- and double-stage, with and without crystallisation), p–T, h–x and solubility diagrams and a property calculator for aqueous NaOH, LiBr, LiCl and CaCl2 solutions, based on Höffner, Ziegler and Elbel (2026) and the Python library absorptionlib.">
+<meta name="keywords" content="absorption thermal battery, ATB, absorption thermal energy storage, absorption heat storage, thermochemical energy storage, sorption storage, seasonal heat storage, energy storage density, NaOH, sodium hydroxide, LiBr, LiCl, CaCl2, salt solution, crystallisation, Dühring, p-T diagram, absorptionlib, Absorptionswärmespeicher, Sorptionsspeicher, Natronlauge">
 <meta name="author" content="Dorian Höffner">
 <link rel="canonical" href="https://dorianhoeffner.com/absorptionlib/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Absorption Atlas">
-<meta property="og:description" content="Interactive p–T, h–x and solubility diagrams, property calculator and storage analysis for aqueous NaOH, LiBr, LiCl and CaCl2 solutions, based on the Python library absorptionlib.">
+<meta property="og:title" content="Absorption Atlas · Absorption thermal batteries">
+<meta property="og:description" content="How much heat can an absorption thermal battery store? Interactive storage analysis and property data for aqueous NaOH, LiBr, LiCl and CaCl2 solutions.">
 <meta property="og:url" content="https://dorianhoeffner.com/absorptionlib/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23111816'/%3E%3Cpath d='M6 25 L26 7 M6 25 L26 13 M6 25 L26 19' stroke='%23fbfcfb' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3Cpath d='M6 26 Q16 22 26 24' stroke='%233987e5' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="fonts.css">
+<script src="/count.js" defer></script>
 
 <style>
 /* Layout: a single working surface — masthead, tab rail, fluid rail, then each tab as a
@@ -169,6 +171,20 @@ a { color: inherit; text-underline-offset: 2px; }
 .paper a { color: var(--ink-2); text-decoration: underline; text-decoration-color: var(--grid-strong); text-underline-offset: 3px; }
 .paper a:hover { color: var(--ink); text-decoration-color: var(--ink); }
 .paper .paper-title { font-family: var(--font-serif); font-style: italic; color: var(--ink); }
+
+/* ---------- introduction for non-experts ---------- */
+.intro { margin-top: 16px; padding: 18px 22px 16px; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r); box-shadow: var(--shadow); }
+.intro-cols { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 4px 36px; }
+.intro summary { cursor: pointer; list-style: none; display: flex; align-items: baseline; gap: 10px; font-family: var(--font-serif); font-size: 21px; font-weight: 600; line-height: 1.3; }
+.intro summary::-webkit-details-marker { display: none; }
+.intro summary::before { content: "▸"; font-family: var(--font-sans); font-size: 15px; color: var(--muted); transition: transform 0.15s ease; }
+.intro[open] summary::before { transform: rotate(90deg); }
+.intro[open] summary { margin-bottom: 10px; }
+.intro p { margin: 0 0 10px; color: var(--ink-2); font-size: 15.5px; line-height: 1.55; max-width: 68ch; text-wrap: pretty; }
+.intro p:last-child { margin-bottom: 0; }
+.intro b { color: var(--ink); font-weight: 600; }
+.intro .go { color: var(--ink); }
+@media (max-width: 860px) { .intro-cols { grid-template-columns: 1fr; } .intro-cols > div + div { margin-top: 10px; } .intro { padding: 14px 16px; } .intro summary { font-size: 18px; } }
 
 /* ---------- segmented controls ---------- */
 .seg {
@@ -806,11 +822,14 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     </div>
   </header>
 
+  <details class="intro" id="intro" open><summary><span data-i18n="introTitle"></span></summary><div class="intro-cols" data-i18n-html="intro"></div></details>
+  <script>/* The introduction starts open; on phones it starts folded so the tool is visible at once. */(function(){try{if(matchMedia("(max-width: 640px)").matches)document.getElementById("intro").open=false;}catch(e){}})();</script>
+
   <div class="rails">
     <nav class="tabs" role="tablist" aria-label="Views" id="tabs">
+      <button type="button" role="tab" id="tb-storage" data-tab="storage" aria-controls="tab-storage" data-i18n="tabStorage"></button>
       <button type="button" role="tab" id="tb-diagram" data-tab="diagram" aria-controls="tab-diagram" data-i18n="tabDiagram"></button>
       <button type="button" role="tab" id="tb-props" data-tab="props" aria-controls="tab-props" data-i18n="tabProps"></button>
-      <button type="button" role="tab" id="tb-storage" data-tab="storage" aria-controls="tab-storage" data-i18n="tabStorage"></button>
       <button type="button" role="tab" id="tb-methods" data-tab="methods" aria-controls="tab-methods" data-i18n="tabMethods"></button>
     </nav>
     <div class="fluids" role="group" id="fluidRail" aria-label="Working pair"></div>
@@ -987,7 +1006,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   <footer class="foot">
     <span data-i18n-html="footL"></span>
     <span data-i18n-html="footR"></span>
-    <a id="legalLink" href="legal.html" data-i18n="legal" hidden></a>
+    <a id="legalLink" href="/legal.html" data-i18n="legal" hidden></a>
   </footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
@@ -1896,7 +1915,9 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   const FORM_TXT = { NaOH: 'NaOH', LiBr: 'LiBr', LiCl: 'LiCl', CaCl2: 'CaCl₂' };
   const T = {
     de: {
-      tagline: 'Stoffwerte und Speicherpotenzial der Arbeitsstoffpaare <em>NaOH</em>, <em>LiBr</em>, <em>LiCl</em> und <em>CaCl₂</em> mit Wasser – interaktiv, im Browser gerechnet.',
+      tagline: 'Wie viel Wärme speichert ein <em>Absorptionswärmespeicher</em> (Absorption Thermal Battery)? Speicherpotenzial und Stoffwerte der Arbeitsstoffpaare <em>NaOH</em>, <em>LiBr</em>, <em>LiCl</em> und <em>CaCl₂</em> mit Wasser – interaktiv, im Browser gerechnet.',
+      introTitle: 'Worum geht es? Absorptionswärmespeicher kurz erklärt',
+      intro: '<div><p>Eine <b>Absorption Thermal Battery (ATB)</b>, auf Deutsch Absorptionswärmespeicher, speichert Wärme in einer Salzlösung, zum Beispiel Natronlauge (NaOH in Wasser). Beim <b>Laden</b> treibt Wärme, etwa aus Solarkollektoren, Wasser aus der Lösung aus. Konzentrierte Lösung und Wasser werden getrennt gelagert, bei Umgebungstemperatur. Deshalb geht die gespeicherte Energie auch über Monate kaum verloren.</p><p>Beim <b>Entladen</b> wird das Wasser mit Wärme auf niedrigem Temperaturniveau wieder verdampft, etwa aus dem Erdreich, und von der konzentrierten Lösung aufgenommen. Dabei wird Wärme auf einem höheren Temperaturniveau frei, mit der sich ein Gebäude heizen lässt. Der Unterschied zwischen beiden Temperaturen ist der <b>Temperaturhub</b>.</p></div><div><p>Unser Artikel (<a href="https://doi.org/10.1016/j.enconman.2026.121845" target="_blank" rel="noopener">Höffner, Ziegler &amp; Elbel 2026</a>) beantwortet die Frage, wie viel Wärme ein solcher Speicher pro Kubikmeter aufnehmen kann. Das hängt vom Prozess ab (ein- oder zweistufig, mit oder ohne Kristallisation des Salzes), vom Temperaturhub und vom Salz. Zum Vergleich zeigt der Atlas auch, was ein Warmwasserspeicher unter denselben Bedingungen speichern würde.</p><p>Am besten beginnen Sie im Reiter <b>Speicher</b>: Salz, Prozess und Temperaturen wählen, der Atlas berechnet die Speicherdichte und zeigt den Kreisprozess. Die übrigen Reiter enthalten die Stoffdaten dahinter.</p></div>',
       tabDiagram: 'Diagramme', tabProps: 'Stoffwerte', tabStorage: 'Speicher', tabMethods: 'Methodik',
       chPT: 'p–T', chHx: 'h–x', chSol: 'Löslichkeit', chProp: 'Stoffwert–x',
       overlay: 'Grenzen aller Stoffpaare',
@@ -1976,7 +1997,9 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
       cycleNoteProc: 'Mehrstufige und kristallisierende Varianten nach Abschnitt 2.2 in [1]; Bilanzen je kg Salz mit absoluten Enthalpien, die Kristalle werden wie in [1] als wasserfreies Salz bilanziert.'
     },
     en: {
-      tagline: 'Properties and storage potential of the working pairs <em>NaOH</em>, <em>LiBr</em>, <em>LiCl</em> and <em>CaCl₂</em> with water – interactive, computed in your browser.',
+      tagline: 'How much heat can an <em>absorption thermal battery</em> store? Storage potential and properties of the working pairs <em>NaOH</em>, <em>LiBr</em>, <em>LiCl</em> and <em>CaCl₂</em> with water – interactive, computed in your browser.',
+      introTitle: 'What is this about? Absorption thermal batteries in brief',
+      intro: '<div><p>An <b>absorption thermal battery (ATB)</b> stores heat in a salt solution, for example sodium hydroxide (NaOH) in water. To <b>charge</b> it, heat, for instance from solar collectors, drives water out of the solution. The concentrated solution and the water are stored separately at ambient temperature, so the stored energy is hardly lost, even over months.</p><p>To <b>discharge</b> it, the water is evaporated again with low-temperature heat, for instance from the ground, and absorbed by the concentrated solution. This releases heat at a higher temperature, which can heat a building. The difference between the two temperatures is the <b>temperature lift</b>.</p></div><div><p>Our paper (<a href="https://doi.org/10.1016/j.enconman.2026.121845" target="_blank" rel="noopener">Höffner, Ziegler &amp; Elbel 2026</a>) answers how much heat such a storage can hold per cubic metre. That depends on the process (single- or double-stage, with or without crystallisation of the salt), on the temperature lift and on the salt. For comparison, the atlas also shows what a hot-water tank would store under the same conditions.</p><p>The best place to start is the <b>Storage</b> tab: choose a salt, a process and the temperatures, and the atlas computes the storage density and shows the cycle. The other tabs contain the property data behind it.</p></div>',
       tabDiagram: 'Diagrams', tabProps: 'Properties', tabStorage: 'Storage', tabMethods: 'Methods',
       chPT: 'p–T', chHx: 'h–x', chSol: 'Solubility', chProp: 'Property–x',
       overlay: 'Limits of all pairs',
@@ -2069,7 +2092,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
   // State
   // ===========================================================================
   const S = {
-    lang: 'en', tab: 'diagram', fluid: 'NaOH', chart: 'pT', unitP: 'kPa', overlay: true, prop: 'rho',
+    lang: 'en', tab: 'storage', fluid: 'NaOH', chart: 'pT', unitP: 'kPa', overlay: true, prop: 'rho',
     pin: { x: 0.5, T: 60 },
     calc: { mode: 'Tx', T: 60, x: 0.5, p: 2400, phi: 30 },
     gen: { props: ['p', 'aw', 'rho', 'cp', 'dhabs'], x0: 30, x1: 50, dx: 5, T0: 20, T1: 80, dT: 20, fmt: 'int' },
@@ -3955,7 +3978,7 @@ details.disclose[open] summary::before { transform: rotate(45deg); }
     $$('#tabs button').forEach(b => b.addEventListener('click', () => setTab(b.dataset.tab)));
     $('#tabs').addEventListener('keydown', ev => {
       if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return;
-      const tabs = ['diagram', 'props', 'storage', 'methods'];
+      const tabs = ['storage', 'diagram', 'props', 'methods'];
       const i = tabs.indexOf(S.tab), j = (i + (ev.key === 'ArrowRight' ? 1 : 3)) % 4;
       setTab(tabs[j]); $('#tb-' + tabs[j]).focus();
     });
